@@ -27,11 +27,18 @@ class Parsing(unittest.TestCase):
         self.assertEqual(ev.parse_decisions('', NOW), [])
 
     def test_until_is_preferred_and_duration_is_the_fallback(self):
-        out = ev.parse_decisions(alerts({'id': 1, 'value': '198.51.100.21', 'scenario': 'x', 'until': '2027-01-15T08:00:00Z', 'duration': '1m'},
+        out = ev.parse_decisions(alerts({'id': 1, 'value': '198.51.100.21', 'scenario': 'x', 'until': '2027-01-15T08:10:00Z', 'duration': '1m'},
                                         {'id': 2, 'value': '198.51.100.22', 'scenario': 'y', 'duration': '29m30s'}), NOW)
-        self.assertEqual(out[0]['expires_at'], 1800000000.0)
+        self.assertEqual(out[0]['expires_at'], 1800000600.0)
         self.assertAlmostEqual(out[1]['expires_at'], NOW + 29 * 60 + 30)
         self.assertEqual({d['ip'] for d in out}, {'198.51.100.21', '198.51.100.22'})
+
+    def test_deleted_decisions_stay_in_alert_output_with_a_past_expiry_and_are_not_active_bans(self):
+        # `cscli decisions delete` soft-deletes: the decision remains in `alerts list`, expired (hosted run 45031286662).
+        out = ev.parse_decisions(alerts({'id': 1, 'value': '198.51.100.25', 'scenario': 'x', 'duration': '-3s'},
+                                        {'id': 2, 'value': '198.51.100.26', 'scenario': 'x', 'until': '2020-01-01T00:00:00Z', 'duration': '5m'},
+                                        {'id': 3, 'value': '198.51.100.27', 'scenario': 'x', 'duration': '4m'}), NOW)
+        self.assertEqual([d['ip'] for d in out], ['198.51.100.27'])
 
     def test_simulated_and_non_ban_decisions_do_not_count(self):
         out = ev.parse_decisions(alerts({'id': 1, 'value': '198.51.100.21', 'scenario': 'x', 'duration': '5m', 'simulated': True},

@@ -35,6 +35,8 @@ def parse_decisions(text, now):
                     continue
                 until = d.get('until')
                 expires = dt.datetime.fromisoformat(until.replace('Z', '+00:00')).timestamp() if until else now + _seconds(d['duration'])
+                if expires <= now:
+                    continue    # soft-deleted/expired decision: crowdsec keeps it in alert output but it no longer bans
                 out.append({'id': str(d['id']), 'ip': str(ipaddress.ip_address(d['value'])), 'scenario': d.get('scenario', ''),
                             'origin': d.get('origin', ''), 'expires_at': expires})
         return out
