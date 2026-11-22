@@ -67,7 +67,7 @@ The production worker waits for the actual Engine to hold the current acquisitio
 - Include IPv6 and the real trusted-proxy/CDN path.
 - A username containing newlines or `from <victim IP>` cannot alter the reported address.
 - Disconnect/restart the local receiver, queue failures, restart the adapter, then flush the same IDs successfully.
-- Verify the old login fallback is suppressed only for this module and unrelated service detection remains unchanged. This version does not implement generic HTTP scan/exploit detection.
+- Verify the old login fallback is suppressed only for this module and unrelated service detection remains unchanged. Generic HTTP scanner detection exists only on the Traefik access log (see README), not through this event path.
 - Demonstrate an actual CrowdSec decision and packet drop, plus an unblocked client control. A successful POST is not a ban test.
 
 No application hook in a sibling repository is installed by this development change. Do not describe registering an event source as end-to-end protection for that application until its adapter passes these checks.

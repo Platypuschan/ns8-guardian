@@ -1,0 +1,23 @@
+# Requests for paths no NS8 application serves and that scanners ask for first
+# (dotfiles, VCS metadata at the web root, CGI/router exploit paths, path traversal).
+# Application-specific paths such as /wp-login.php are deliberately NOT listed: NS8 hosts WordPress.
+# Three hits in five minutes; smart-HTTP Git URLs like /user/repo.git/info/refs do not match.
+{
+  "type": "leaky",
+  "name": "ns8/ns8-http-sensitive-probe",
+  "description": "Probing for sensitive or exploit paths",
+  "filter": "evt.Meta.log_type == 'ns8_traefik_access' && evt.Meta.http_path matches '^/(\\\\.env|\\\\.git/|\\\\.svn/|\\\\.hg/|\\\\.aws/|\\\\.ssh/|\\\\.DS_Store|cgi-bin/|boaform/|vendor/phpunit/)|(^|/)\\\\.\\\\.(/|$)|%2e%2e|/etc/passwd'",
+  "groupby": "evt.Meta.source_ip",
+  "capacity": 2,
+  "leakspeed": "5m",
+  "blackhole": "1m",
+  "labels": {
+    "service": "ns8",
+    "behavior": "http:scan",
+    "classification": [
+      "attack.T1595"
+    ],
+    "label": "Sensitive path probing",
+    "remediation": true
+  }
+}

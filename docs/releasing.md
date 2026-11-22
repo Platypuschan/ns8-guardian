@@ -105,8 +105,8 @@ separate from release promotion; do not paste credentials into release notes.
 Known RC limits are carried in generated release notes: consumer ACK is now
 engine-generation based with bounded replay (see docs/application-events.md);
 the two-node NS8 lab (docs/two-node-lab.md) covers reboot and backup/restore;
-remaining limits are limited application adapters and no exactly-once claim. No
-generic HTTP WAF or universal application-login coverage is claimed. Passing the
+remaining limits are limited application adapters and no exactly-once claim. Two
+generic HTTP scanner rules exist, but no WAF and no universal application-login coverage is claimed. Passing the
 Debian13/Rocky9 single-node install smoke tests is not production approval.
 
 ## Offline regressions

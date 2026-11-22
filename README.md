@@ -55,11 +55,22 @@ Design rationale: [docs/adr/0001-autonomous-hybrid.md](docs/adr/0001-autonomous-
 
 ## What is detected, and how
 
-This version does **not** provide generic HTTP scan/exploit detection, inline WAF
-or CrowdSec community IP reputation. Stock Traefik/HTTP collections are not
-enabled because their client-IP interpretation failed the trusted-proxy fixture.
-Do not enable them blindly; a separately tested client-IP normalization path is
-required before extending coverage.
+Besides the application-specific rules (Gitea, Organizr, Samba, admin login and
+registered application events) there are two **generic HTTP scanner rules** on the
+NS8 Traefik access log, using Guardian's own parser (client address as written by
+Traefik itself, never a forgeable header):
+
+- `ns8/ns8-http-probing`: one client requesting more than 30 *distinct* paths that
+  answer 403/404 within a short time (the same missing path repeated does not count).
+- `ns8/ns8-http-sensitive-probe`: three requests within five minutes for paths no
+  NS8 application serves and scanners ask for first (`/.env`, `/.git/`, `/.svn/`,
+  `/cgi-bin/`, `/boaform/`, path traversal, `/etc/passwd`, ...). Application paths such as
+  `/wp-login.php` and smart-HTTP Git URLs are deliberately not matched.
+
+This is **not** a WAF: no request body or header inspection, no inline blocking, no
+CrowdSec community IP reputation. Stock Traefik/HTTP collections stay disabled
+because their client-IP interpretation failed the trusted-proxy fixture; do not
+enable them blindly.
 
 | Source | Signal | Ban after |
 | --- | --- | --- |

@@ -31,6 +31,6 @@ Before production deployment, repeat on the repaired artifact:
 
 ## Coverage and non-goals
 
-This branch does not provide generic HTTP scan/exploit detection or inline WAF/AppSec, and it does not recreate CrowdSec's community reputation database. Enabling stock HTTP collections without fixing the demonstrated client-IP attribution problem is not an acceptable shortcut. Registering a source does not install an application hook. There is no infinite lossless retention guarantee on finite storage, and no promise that in-memory detection buckets survive every crash.
+This version provides two conservative generic HTTP scanner rules (`ns8-http-probing`, `ns8-http-sensitive-probe`, replayed by `tests/test-rules.sh` against the real engine, including negative controls) but no inline WAF/AppSec, and it does not recreate CrowdSec's community reputation database. Enabling stock HTTP collections without fixing the demonstrated client-IP attribution problem is not an acceptable shortcut. Registering a source does not install an application hook. There is no infinite lossless retention guarantee on finite storage, and in-memory detection buckets do not survive an engine restart by themselves: events acknowledged within the last two minutes are replayed (see docs/application-events.md).
 
 An OCI archive or local image is a test artifact, not a published remotely installable release. Release promotion, catalog inclusion and changes to running instances require their own authorization and read-back verification.
