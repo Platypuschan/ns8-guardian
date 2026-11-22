@@ -74,6 +74,8 @@ class MockNode:
         self.up = True
         self.suppressed = set()
         self.name = role
+        self.buckets = {}              # ip -> events held in the (in-memory) scenario bucket
+        self.replayed = 0
 
     def expire(self, now):
         for ip in [i for i, d in self.decisions.items() if d['expires_at'] <= now]:
@@ -149,7 +151,17 @@ class MockOps:
             return
         if self.c.m.get('slow_outage_ban') and not self.c.link:
             self.c.sleep(self.c.m['slow_outage_ban'])      # real runs spend ~1 min detecting the stale hub first
-        self.n.decisions[ip] = {'scenario': 'crowdsec/lab', 'expires_at': self.c.t + TTL}
+        self.n.buckets[ip] = self.n.buckets.get(ip, 0) + count
+        if self.n.buckets[ip] > 4:                     # leaky bucket capacity 4: the 5th event overflows into a ban
+            self.n.decisions[ip] = {'scenario': 'crowdsec/lab', 'expires_at': self.c.t + TTL}
+    def engine_restart(self):
+        if self.c.m.get('no_replay'):
+            self.n.buckets = {}                        # in-memory bucket state is gone and nothing refills it
+        else:
+            self.n.replayed += sum(self.n.buckets.values())
+        self.c.sleep(20)
+    def event_status(self):
+        return {'unacked': 0, 'pending': 0, 'replayed_total': self.n.replayed}
     def allowlist(self): return {'198.51.100.241'}
     def unban(self, ip):
         self.n.decisions.pop(ip, None)
@@ -230,6 +242,18 @@ class Scenario(unittest.TestCase):
         self.assertEqual(status(result, 'absolute_ttl'), 'pass', reason(result, 'absolute_ttl'))
         case = [x for x in result['cases'] if x['id'] == 'absolute_ttl'][0]
         self.assertGreaterEqual(case['evidence']['delay_before_import_seconds'], 120)
+
+    def test_engine_restart_replay_rebuilds_buckets_and_the_ban_follows(self):
+        result, c = run()
+        self.assertEqual(status(result, 'engine_restart_event_replay'), 'pass', reason(result, 'engine_restart_event_replay'))
+        evidence = [x for x in result['cases'] if x['id'] == 'engine_restart_event_replay'][0]['evidence']
+        self.assertGreaterEqual(evidence['replayed_events'], 3)
+        self.assertTrue(evidence['banned_after_restart'])
+
+    def test_lost_bucket_state_without_replay_is_caught(self):
+        result, _ = run(no_replay=True)
+        self.assertEqual(status(result, 'engine_restart_event_replay'), 'fail')
+        self.assertRegex(reason(result, 'engine_restart_event_replay'), 'replay|ban')
 
     def test_ttl_restart_at_import_is_caught(self):
         result, _ = run(reset_ttl=True)

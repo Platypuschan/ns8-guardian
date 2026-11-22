@@ -65,7 +65,8 @@ passed; a case that did not execute makes the run fail. Required cases:
 | `absolute_ttl` | after a >= 130 s outage the importing node's expiry equals the origin's absolute expiry within 20 s (a TTL restarted at import would differ by the outage length), both directions |
 | `no_echo` | no echo: hub claim origins are exactly the originator; imports are not re-exported; exactly one imported decision per node |
 | `allowlist_negative_control` | allowlisted addresses are never banned or dropped on either node |
-| `hub_unreachable_local_protection` | with the hub's tap link set down (specific owned link), the member reports the hub stale yet turns new local auth events into a decision and packet drop; the isolated hub does too |
+| `engine_restart_event_replay` | consumer ACK and bucket rebuild: 3 failure events reach the hub engine (bucket capacity 4, no ban) and are acknowledged; the engine unit restarts (in-memory bucket lost); 4 more events must still ban because the acknowledged events were replayed (4 alone cannot overflow the bucket) |
+| `hub_unreachable_local_protection` | with hub<->member traffic dropped by an owned nft table inside both guests (host management stays up), the member reports the hub stale yet turns new local auth events into a decision and packet drop; the isolated hub does too |
 | `reconnect_convergence_ban_unban` | after the link returns, bans created during the outage converge both ways and an origin unban made during the outage reaches the hub (drop removed) |
 | `member_guest_reboot` | full guest reboot (boot id changed), all five units active, bans/nftables/drops persisted, unbanned address not resurrected, sync works again and a new ban propagates |
 | `hub_guest_reboot` | same for the hub, plus claims, tombstone and epoch unchanged by a plain reboot |

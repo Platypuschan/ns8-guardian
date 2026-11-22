@@ -217,6 +217,13 @@ def unban(request):
             fail("addresses", "invalid_address")
     for value in addresses:
         lifecycle.cscli("decisions", "delete", "--ip", str(value))
+    if addresses:
+        try:
+            store = Store(state_dir())
+            for value in addresses:
+                store.note_unban(str(value))
+        except (sqlite3.Error, OSError):
+            pass    # best effort: only narrows replay after an engine restart
 
 
 def get_status(_request):

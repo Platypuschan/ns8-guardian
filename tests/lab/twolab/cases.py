@@ -13,6 +13,7 @@ REQUIRED_CASES = [
     'absolute_ttl',
     'no_echo',
     'allowlist_negative_control',
+    'engine_restart_event_replay',
     'hub_unreachable_local_protection',
     'reconnect_convergence_ban_unban',
     'member_guest_reboot',

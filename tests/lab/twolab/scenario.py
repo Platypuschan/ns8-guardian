@@ -18,6 +18,7 @@ X_UNBAN_AFTER_BACKUP = '198.51.100.26'
 Y_KEEP = '198.51.100.27'
 F_POST_REBOOT = '198.51.100.28'
 G_POST_REBOOT_HUB = '198.51.100.29'
+H_ENGINE_RESTART = '198.51.100.30'   # not an attacker-namespace address: only decisions/nftables are observed
 ALLOWLISTED = '198.51.100.241'
 ALLOWLIST_CIDR = '198.51.100.240/29'
 ATTACKER_IPS = [A_MEMBER, B_HUB, C_OUTAGE_MEMBER, D_OUTAGE_HUB, E_UNBAN_DURING_OUTAGE, X_UNBAN_AFTER_BACKUP, Y_KEEP,
@@ -128,6 +129,30 @@ class Scenario:
             out['positive_control'] = 'non-allowlisted addresses were banned by the same event path in the sync cases'
             return out
         self.case('allowlist_negative_control', check)
+
+    def engine_restart_replay(self):
+        """Consumer ACK + bucket rebuild: 3 failures reach the hub's engine (bucket capacity 4, no ban yet), the engine
+        restarts (its in-memory bucket is gone), and 4 more failures must still produce the ban because the acknowledged
+        events were replayed. 4 events alone cannot overflow the bucket, so a ban proves the replay."""
+        def check():
+            hub, ip = self.hub, H_ENGINE_RESTART
+            before = hub.event_status()['replayed_total']
+            hub.ban_by_events(ip, count=3)
+            _require(wait_until(self.clock, lambda: hub.event_status()['pending'] == 0 and hub.event_status()['unacked'] == 0, 120),
+                     'events were not acknowledged as consumed by the engine')
+            _require(_decision(hub, ip) is None and not ev.nft_has_ip(hub.nft(), ip), 'bucket overflowed early: test premise broken')
+            hub.engine_restart()
+            _require(wait_until(self.clock, lambda: self._units_ok(hub), 240, 10), 'hub units not active after the engine restart')
+            _require(wait_until(self.clock, lambda: hub.event_status()['replayed_total'] >= before + 3 and hub.event_status()['unacked'] == 0
+                                and hub.event_status()['pending'] == 0, 180), 'acknowledged events were not replayed after the engine restart')
+            hub.ban_by_events(ip, count=4)
+            _require(wait_until(self.clock, lambda: _decision(hub, ip) is not None, 120), 'no ban after replay: bucket state was not rebuilt')
+            _require(wait_until(self.clock, lambda: ev.nft_has_ip(hub.nft(), ip), 60), 'ban never reached nftables')
+            replayed = hub.event_status()['replayed_total'] - before
+            hub.unban(ip)
+            return {'ip': ip, 'events_before_restart': 3, 'events_after_restart': 4, 'bucket_capacity': 4, 'replayed_events': replayed,
+                    'banned_after_restart': True, 'note': 'ban impossible from the 4 post-restart events alone'}
+        self.case('engine_restart_event_replay', check)
 
     def outage_and_reconnect(self):
         ctx = self.ctx
@@ -329,6 +354,7 @@ class Scenario:
         self.sync_both_ways()
         self.no_echo()
         self.allowlist()
+        self.engine_restart_replay()
         self.outage_and_reconnect()
         self.reboot(self.member, self.hub, 'member_guest_reboot')
         self.reboot(self.hub, self.member, 'hub_guest_reboot', plain_epoch_check=True)

@@ -91,6 +91,18 @@ class GuestOps:
         status = self.api(self.mod_agent(), 'get-companion-status', {})
         return status.get('sync') or {'stale': True, 'error': 'no sync status'}
 
+    def event_status(self):
+        sync = self.api(self.mod_agent(), 'get-companion-status', {}).get('sync') or {}
+        try:
+            return {'pending': int(sync['event_pending']), 'unacked': int(sync['event_unacked']),
+                    'replayed_total': int(sync['event_replayed_total'])}
+        except (KeyError, TypeError, ValueError):
+            raise RemoteError('%s: companion status carries no event acknowledgement counters' % self.role) from None
+
+    def engine_restart(self):
+        """Restart only the Engine unit: its in-memory scenario buckets are lost, the module state stays."""
+        self.guest.run('systemctl restart %s.service' % g.valid_module(self.module), timeout=300)
+
     def reachable(self, ip):
         rc, out = self.guest.run(g.probe_reachable(self.names, ip), check=False)
         verdict = g.reachability(rc, out)

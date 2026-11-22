@@ -1,11 +1,16 @@
 """Durable private state. No access to CrowdSec's database.
 
-Event output uses a fsynced append and a transactional appended marker (the
-legacy column is named delivered). Pending rows replay when acquisition is ready;
-the stable body is checked at the log tail after an interrupted commit. Neither
-the marker nor the readiness probe acknowledges consumer progress. A consumer
-crash between probe/append/consumption can still lose input; no exactly-once
-guarantee across SQLite, files and CrowdSec acquisition/buckets is claimed.
+Event output is a fsynced append plus a transactional *appended* marker (column
+``delivered``). Consumption is acknowledged separately (``acked``): an event is
+acked only when the SAME engine process generation that was running at append time
+has read past the event's end offset and a short settle time has passed. If the
+engine generation changes first (crash/restart) the event is re-appended, and after
+any generation change recently acked events are replayed (bounded window, minus
+addresses unbanned since) so in-memory scenario buckets are rebuilt. Scenarios
+deduplicate by event id (``distinct``), so replay does not double count.
+Guarantee: at-least-once into the engine for events younger than the replay window;
+reading past an event is the strongest consumption signal available without
+changing CrowdSec, and a crash inside the settle time is covered by the replay.
 """
 import datetime as dt
 import hashlib
@@ -27,6 +32,8 @@ MAX_SOURCE_EVENTS = 2000   # undelivered events per source: one source cannot st
 MAX_CLAIMS = 10000
 MAX_PEER_CLAIMS = 2000     # all retained claims per peer, including tombstones
 BATCH = 256
+ACK_SETTLE = 3.0         # seconds after append before a read-past offset counts as consumed
+REPLAY_WINDOW = 120.0    # re-feed acked events newer than this after an engine restart (bucket rebuild)
 TIMESTAMP = re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?Z\Z')
 
 
@@ -83,6 +90,7 @@ class Store:
                 expires_at REAL NOT NULL, deleted INTEGER NOT NULL, seq INTEGER NOT NULL,
                 PRIMARY KEY(origin,id));
             CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS unbans(ip TEXT PRIMARY KEY, at REAL NOT NULL);
             INSERT OR IGNORE INTO meta VALUES('sequence','0');
             ''')
             db.execute('BEGIN IMMEDIATE')  # serialize concurrent source-schema migration
@@ -90,6 +98,11 @@ class Store:
             # sources remain pending until their credential is flushed.
             if 'active' not in {r[1] for r in db.execute('PRAGMA table_info(sources)')}:
                 db.execute('ALTER TABLE sources ADD COLUMN active INTEGER NOT NULL DEFAULT 1')
+            have = {r[1] for r in db.execute('PRAGMA table_info(events)')}
+            for column, ddl in (('file_end', 'INTEGER'), ('appended_gen', 'TEXT'), ('appended_at', 'REAL'), ('acked', 'REAL'),
+                                ('log_seq', 'INTEGER NOT NULL DEFAULT 0'), ('replay', 'INTEGER NOT NULL DEFAULT 0')):
+                if column not in have:
+                    db.execute('ALTER TABLE events ADD COLUMN %s %s' % (column, ddl))
             db.execute("INSERT OR IGNORE INTO meta VALUES('epoch',?)", (str(uuid.uuid4()),))
         os.chmod(self.state, 0o700)
         os.chmod(self.path, 0o600)
@@ -272,6 +285,46 @@ class Store:
             return set()
         return set(data.decode('utf-8', 'replace').splitlines())
 
+    def event_consumer_state(self, container=None, event_path='/var/log/ns8-events/auth.jsonl'):
+        """Engine process generation and acquisition offset, or None if it cannot be determined.
+
+        Returns {'ready': fd open, 'gen': 'boot:pid:starttime', 'pos': smallest read offset, 'size': file size}.
+        """
+        from . import lifecycle
+        container = container or lifecycle.module_id()
+        script = r'''path=$1
+        size=$(stat -Lc %s "$path" 2>/dev/null) || size=0
+        boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)
+        gen=; pos=; ready=0
+        for proc in /proc/[0-9]*; do
+            [ "$(cat "$proc/comm" 2>/dev/null)" = crowdsec ] || continue
+            read -r stat < "$proc/stat" 2>/dev/null || continue
+            set -- ${stat##*) }
+            gen="$boot:${proc##*/}:${20}"
+            for fd in "$proc"/fd/*; do
+                [ "$fd" -ef "$path" ] || continue
+                ready=1
+                p=
+                while read -r key value rest; do
+                    [ "$key" = pos: ] && p=$value
+                done < "$proc/fdinfo/${fd##*/}"
+                [ -n "$p" ] || continue
+                if [ -z "$pos" ] || [ "$p" -lt "$pos" ]; then pos=$p; fi
+            done
+        done
+        echo "gen=$gen"; echo "ready=$ready"; echo "pos=${pos:-0}"; echo "size=$size"'''
+        result = lifecycle.run(['podman', 'exec', container, 'sh', '-c', script, 'state', event_path], check=False, timeout=5)
+        if result.returncode != 0:
+            return None
+        values = dict(line.split('=', 1) for line in (result.stdout or '').splitlines() if '=' in line)
+        try:
+            if not values.get('gen'):
+                return {'ready': False, 'gen': '', 'pos': 0, 'size': int(values.get('size', 0))}
+            return {'ready': values.get('ready') == '1', 'gen': values['gen'],
+                    'pos': int(values.get('pos', 0)), 'size': int(values.get('size', 0))}
+        except (ValueError, KeyError):
+            return None
+
     def event_consumer_ready(self, container=None, event_path='/var/log/ns8-events/auth.jsonl'):
         """Check a running Engine's actual open acquisition file, not just LAPI.
 
@@ -319,7 +372,56 @@ class Store:
 
     EVENT_LOG_LIMIT = 32 * 1024 * 1024
 
-    def deliver_events(self, consumer_ready=None):
+    def note_unban(self, ip):
+        """Remember an operator unban so replay never re-feeds events from before it."""
+        with self.connect() as db:
+            db.execute('INSERT OR REPLACE INTO unbans VALUES(?,?)', (str(ipaddress.ip_address(ip)), time.time()))
+            db.execute('DELETE FROM unbans WHERE at<?', (time.time() - 7 * 86400,))
+
+    def event_status(self):
+        with self.connect() as db:
+            replayed = db.execute("SELECT value FROM meta WHERE key='event_replayed_total'").fetchone()
+            return {'pending': db.execute('SELECT count(*) FROM events WHERE delivered=0').fetchone()[0],
+                    'unacked': db.execute('SELECT count(*) FROM events WHERE delivered=1 AND acked IS NULL AND appended_gen IS NOT NULL').fetchone()[0],
+                    'replayed_total': int(replayed[0]) if replayed else 0}
+
+    def _observe_generation(self, db, gen):
+        """Detect an engine restart. Returns (requeued, replayed). Must run inside a write transaction."""
+        row = db.execute("SELECT value FROM meta WHERE key='engine_gen'").fetchone()
+        if row and row[0] == gen:
+            return 0, 0
+        db.execute("INSERT OR REPLACE INTO meta VALUES('engine_gen',?)", (gen,))
+        if row is None:
+            return 0, 0                      # first observation: nothing was fed to an earlier generation
+        now = time.time()
+        requeued = db.execute("""UPDATE events SET delivered=0, replay=1, appended_gen=NULL, file_end=NULL
+                                 WHERE delivered=1 AND acked IS NULL AND appended_gen IS NOT NULL""").rowcount
+        replayed = db.execute("""UPDATE events SET delivered=0, replay=1, appended_gen=NULL, file_end=NULL, acked=NULL
+                                 WHERE delivered=1 AND acked IS NOT NULL AND appended_gen IS NOT NULL AND appended_at>=?
+                                   AND NOT EXISTS (SELECT 1 FROM unbans WHERE unbans.ip=json_extract(events.body,'$.source_ip')
+                                                   AND unbans.at>=events.appended_at)""", (now - REPLAY_WINDOW,)).rowcount
+        if replayed:
+            total = db.execute("SELECT value FROM meta WHERE key='event_replayed_total'").fetchone()
+            db.execute("INSERT OR REPLACE INTO meta VALUES('event_replayed_total',?)", (str(int(total[0] if total else 0) + replayed),))
+        return requeued, replayed
+
+    def ack_events(self, consumer_state):
+        """Acknowledge consumed events, requeue those lost to an engine restart. Idempotent; never raises on probe failure."""
+        empty = {'acked': 0, 'requeued': 0, 'replayed': 0}
+        state = consumer_state()
+        if not state or not state.get('gen'):
+            return empty
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            requeued, replayed = self._observe_generation(db, state['gen'])
+            now = time.time()
+            seq = int((db.execute("SELECT value FROM meta WHERE key='log_seq'").fetchone() or ('0',))[0])
+            acked = db.execute("""UPDATE events SET acked=? WHERE delivered=1 AND acked IS NULL AND appended_gen=? AND (
+                                    log_seq<? OR (log_seq=? AND file_end<=? AND appended_at<=?))""",
+                               (now, state['gen'], seq, seq, state['pos'], now - ACK_SETTLE)).rowcount
+        return {'acked': acked, 'requeued': requeued, 'replayed': replayed}
+
+    def deliver_events(self, consumer_ready=None, consumer_state=None):
         directory = self.state / 'events'
         path = directory / 'auth.jsonl'
         previous = directory / 'auth.previous'
@@ -334,21 +436,32 @@ class Store:
             finally: os.close(fd)
         # Call the real readiness probe before opening a write transaction.
         # A false result leaves the durable queue untouched for the next tick.
-        if consumer_ready is not None and not consumer_ready():
+        state = None
+        if consumer_state is not None:
+            state = consumer_state()
+            if not state or not state.get('ready') or not state.get('gen'):
+                return 0
+        elif consumer_ready is not None and not consumer_ready():
             return 0
         directory.mkdir(mode=0o700, exist_ok=True)
         rotate = path.exists() and path.stat().st_size > self.EVENT_LOG_LIMIT
         # A tailer follows the filename after rotation. Never put a pending
         # batch into a new inode before acquisition has opened that inode.
-        if rotate and consumer_ready is not None and not self.event_consumer_drained():
+        if rotate and (consumer_ready is not None or state is not None) and not self.event_consumer_drained():
             return 0
         count = 0
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
+            if state is not None:
+                self._observe_generation(db, state['gen'])
             rows = db.execute('SELECT * FROM events WHERE delivered=0 ORDER BY accepted LIMIT ?', (BATCH,)).fetchall()
             if not rows:
                 return 0
+            seq = int((db.execute("SELECT value FROM meta WHERE key='log_seq'").fetchone() or ('0',))[0])
             if rotate:
+                # The old file was read to EOF by every matching fd (drained probe above): its rows are consumed.
+                db.execute('UPDATE events SET acked=? WHERE delivered=1 AND acked IS NULL AND appended_gen IS NOT NULL AND log_seq=?', (time.time(), seq))
+                db.execute("INSERT OR REPLACE INTO meta VALUES('log_seq',?)", (str(seq + 1),))
                 os.replace(path, previous)
                 with path.open('xb') as fresh:
                     os.chmod(path, 0o600)
@@ -368,15 +481,20 @@ class Store:
                         if last.read(1) != b'\n':
                             log.write(b'\n')  # a torn last line must not swallow the next event
                 for row in rows:
-                    if row['body'] not in seen:
+                    if row['replay'] or row['body'] not in seen:
                         log.write(row['body'].encode() + b'\n')
                         count += 1
-                    db.execute('UPDATE events SET delivered=1 WHERE source=? AND id=?', (row['source'],row['id']))
+                    if state is not None:
+                        log.flush()
+                        db.execute('UPDATE events SET delivered=1, replay=0, acked=NULL, appended_gen=?, appended_at=?, file_end=?, log_seq=? '
+                                   'WHERE source=? AND id=?', (state['gen'], time.time(), log.tell(), seq, row['source'], row['id']))
+                    else:
+                        db.execute('UPDATE events SET delivered=1 WHERE source=? AND id=?', (row['source'],row['id']))
                 log.flush()
                 os.fsync(log.fileno())
             if created:
                 fd = os.open(directory, os.O_RDONLY)
                 try: os.fsync(fd)
                 finally: os.close(fd)
-            db.execute('DELETE FROM events WHERE delivered=1 AND accepted<?', (time.time()-86400,))
+            db.execute('DELETE FROM events WHERE delivered=1 AND accepted<?', (time.time()-86400,))   # retention also bounds unacked rows
         return count

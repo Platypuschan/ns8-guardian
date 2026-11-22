@@ -23,7 +23,7 @@ class LoopIntegrationTests(unittest.TestCase):
                  patch.object(sync.time, 'sleep', side_effect=InterruptedError):
                 with self.assertRaises(InterruptedError):
                     sync.main()
-                deliver.assert_called_once_with(store.event_consumer_ready)
+                deliver.assert_called_once_with(store.event_consumer_ready, store.event_consumer_state)
 
 
     def test_interrupted_rotation_recreates_target_before_readiness_probe(self):
