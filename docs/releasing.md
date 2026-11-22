@@ -109,6 +109,8 @@ remaining limits are limited application adapters and no exactly-once claim. Two
 generic HTTP scanner rules exist, but no WAF and no universal application-login coverage is claimed. Passing the
 Debian13/Rocky9 single-node install smoke tests is not production approval.
 
+See [stable-criteria.md](stable-criteria.md) for the evidence required before a stable release or catalog entry.
+
 ## Offline regressions
 
 ```sh
