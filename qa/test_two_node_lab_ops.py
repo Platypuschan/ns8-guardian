@@ -174,6 +174,7 @@ class NodeOps(unittest.TestCase):
             r.when('true', 0, '')
             ops, _, _ = make(tmp, r)
             ops.tcp_probe = lambda host, port: True
-            self.assertEqual(ops.management_access(), {'ssh': True, 'https_tcp': True})
+            ops.admin_login = lambda: True
+            self.assertEqual(ops.management_access(), {'ssh': True, 'https_tcp': True, 'admin_login': True})
             ops.tcp_probe = lambda host, port: False
             self.assertEqual(ops.management_access()['https_tcp'], False)

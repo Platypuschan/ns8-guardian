@@ -25,7 +25,7 @@ def parse_api(output):
 
 class GuestOps:
     def __init__(self, guest, names, role, module, peer, clock=time.time, sleep=time.sleep, image_ref=None,
-                 enroll=None, attacker_ips=None, node_id=1, backup=None):
+                 enroll=None, attacker_ips=None, node_id=1, backup=None, admin_login=None):
         self.guest, self.names, self.role, self.name = guest, names, role, role
         self.module, self.peer, self.clock, self.sleep = module, peer, clock, sleep
         self.image_ref, self.enroll, self.node_id, self.backup = image_ref, enroll, node_id, backup
@@ -34,6 +34,7 @@ class GuestOps:
             attacker_ips = ATTACKER_IPS
         self.attacker_ips = attacker_ips
         self._source = None
+        self.admin_login = admin_login      # callable -> bool: real NS8 admin API login from the runner
         self.tcp_probe = self._tcp_probe
 
     # -- helpers --------------------------------------------------------------
@@ -172,7 +173,8 @@ class GuestOps:
             return False
 
     def management_access(self):
-        return {'ssh': self.guest.run('true', check=False)[0] == 0, 'https_tcp': bool(self.tcp_probe(self.guest.ip, 443))}
+        return {'ssh': self.guest.run('true', check=False)[0] == 0, 'https_tcp': bool(self.tcp_probe(self.guest.ip, 443)),
+                'admin_login': bool(self.admin_login()) if self.admin_login else False}
 
     # -- hub: native NS8 backup/restore ----------------------------------------
     def backup_now(self):

@@ -174,7 +174,7 @@ class MockOps:
             self.n.decisions = {}
         self.c.sleep(60)
     def prepare_attacker(self): pass
-    def management_access(self): return {'ssh': True, 'https_tcp': True}
+    def management_access(self): return {'ssh': True, 'https_tcp': True, 'admin_login': True}
     def management_ip(self): return '192.168.171.1'
     # hub only
     def backup_now(self):

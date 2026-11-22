@@ -46,3 +46,14 @@ class InstallUmask(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class InstallerPin(InstallUmask):
+    def test_installer_is_verified_against_a_pinned_sha256_before_it_runs(self):
+        from twolab.lab import CORE_INSTALLER_SHA256
+        self.assertRegex(CORE_INSTALLER_SHA256, r'^[0-9a-f]{64}$')
+        install, _ = self.commands()
+        check = "echo '%s  install.sh' | sha256sum -c -" % CORE_INSTALLER_SHA256
+        self.assertIn(check, install)
+        self.assertLess(install.index(check), install.index('bash install.sh'))
+        self.assertIn('set -eu', install)          # a failed check aborts before the installer executes

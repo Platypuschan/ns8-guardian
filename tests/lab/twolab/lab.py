@@ -32,6 +32,7 @@ PUBLIC_FILES = ('result.json', 'summary.md', 'source-evidence.json', 'transcript
                 'diagnostics-member.log', 'console-hub.log', 'console-member.log')
 HUB_HOST = 'guardian-hub.lab.test'
 CORE_INSTALLER_REF = 'e27e2abbeee37e16e92c23027dbe0d3403aa385c'
+CORE_INSTALLER_SHA256 = '89cf56f5f1e2268ce3a0d092131020b09957744397cb23927bfe2aaabc677def'   # core/install.sh at CORE_INSTALLER_REF
 CORE_IMAGE = 'ghcr.io/nethserver/core:3.25.1'
 VPN = {'hub': '10.5.4.0/24', 'member': '10.5.5.0/24'}
 DEADLINE_SECONDS = 80 * 60
@@ -214,12 +215,31 @@ class Lab:
             guest = Guest(role, self.addr[role], self.keyfile, self.known_hosts, self.runner, self.sanitizer, self.transcript)
             self.guests[role] = guest
             self.ops[role] = GuestOps(guest, names=self.names, role=role, module='', peer='member1' if role == 'member' else '',
-                                      clock=self.clock, sleep=self.sleep, image_ref=self.cfg.module_ref)
+                                      clock=self.clock, sleep=self.sleep, image_ref=self.cfg.module_ref,
+                                      admin_login=lambda role=role: self.admin_login(role))
         for role, guest in self.guests.items():
             self.wait_ssh(guest)
             guest.run('cloud-init status --wait --long', timeout=600)
             guest.run('systemctl is-system-running --wait', check=False, timeout=300)
             guest.run('getent hosts registry-1.docker.io', timeout=60)
+
+    def admin_login(self, role):
+        """Real NS8 admin API login from the runner (the management source). The token is discarded; only HTTP 200 counts."""
+        body = json.dumps({'username': 'admin', 'password': self.secrets['admin_' + role]})
+        base = ['curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '20', '-H', 'Content-Type: application/json',
+                '--data', '@-']
+        if role == 'hub':
+            argv = base + ['--cacert', self.ca['ca'], '--resolve', '%s:443:%s' % (HUB_HOST, self.addr['hub']),
+                           'https://%s/cluster-admin/api/login' % HUB_HOST]
+        else:
+            # The member's Traefik still presents its default certificate: this check proves the admin API plane
+            # answers, not TLS trust (TLS trust is covered by private_ca_verified_https).
+            argv = base + ['--insecure', 'https://%s/cluster-admin/api/login' % self.addr[role]]
+        try:
+            code, out = self.runner(argv, input=body, timeout=40)
+        except Exception:
+            return False
+        return code == 0 and out.strip() == '200'
 
     def wait_ssh(self, guest, attempts=90):
         for _ in range(attempts):
@@ -237,10 +257,10 @@ class Lab:
         password = self.secrets['admin_' + role]
         guest.run('set -eu; umask 022; IFS= read -r pw; install -m 600 /dev/null /root/install.log; cd /root; if [ -d /etc/apt/apt.conf.d ]; then echo \'Acquire::Retries "5";\' > /etc/apt/apt.conf.d/80-lab-retries; fi; '
                   'curl -fsSL --retry 3 -o install.sh https://raw.githubusercontent.com/NethServer/ns8-core/%s/core/install.sh; '
-                  'sha256sum install.sh; ADMIN_PASSWORD="$pw" bash install.sh %s '
+                  'echo \'%s  install.sh\' | sha256sum -c -; ADMIN_PASSWORD="$pw" bash install.sh %s '
                   'ghcr.io/nethserver/traefik:4.2.6 ghcr.io/nethserver/ldapproxy:1.4.0 '
                   'ghcr.io/nethserver/loki:1.5.3 ghcr.io/nethserver/metrics:1.7.1 '
-                  '>/root/install.log 2>&1' % (CORE_INSTALLER_REF, CORE_IMAGE),
+                  '>/root/install.log 2>&1' % (CORE_INSTALLER_REF, CORE_INSTALLER_SHA256, CORE_IMAGE),
                   stdin=password + '\n', secret_stdin=True, timeout=1800)
         guest.run('set -eu; umask 022; IFS= read -r pw; install -m 600 /dev/null /root/create-cluster-private.log; create-cluster %s:55820 %s "$pw" '
                   '>/root/create-cluster-private.log 2>&1' % (self.addr[role], VPN[role]),

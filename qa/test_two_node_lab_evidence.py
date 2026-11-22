@@ -170,7 +170,7 @@ class Enforcement(unittest.TestCase):
             ev.assert_digest_readback(want, {'hub': want})
 
     def test_management_source_must_never_appear_in_decisions_or_nft_and_keep_ssh_and_https_access(self):
-        ok = {'ssh': True, 'https_tcp': True}
+        ok = {'ssh': True, 'https_tcp': True, 'admin_login': True}
         ev.assert_management_unaffected('192.168.171.1', decisions=[{'ip': '198.51.100.21'}], nft_text='elements = { 198.51.100.21 }',
                                         access_before=ok, access_after=ok)
         with self.assertRaises(ev.EvidenceError):

@@ -137,7 +137,7 @@ def assert_digest_readback(expected, observed):
             raise EvidenceError('%s runs %s, expected %s' % (node, digest, expected))
 
 
-MANAGEMENT_OK = {'ssh': True, 'https_tcp': True}
+MANAGEMENT_OK = {'ssh': True, 'https_tcp': True, 'admin_login': True}
 
 
 def assert_management_unaffected(source_ip, decisions, nft_text, access_before, access_after):

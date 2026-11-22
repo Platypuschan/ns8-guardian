@@ -73,7 +73,7 @@ passed; a case that did not execute makes the run fail. Required cases:
 | `native_ns8_backup_restore` | native `module-backup` to a `cluster` WebDAV repository inside the hub guest, hub module removed, NS8 `restore-module` from the snapshot (same module UUID), units active |
 | `restore_new_epoch_tombstone_reconverge` | an unban acknowledged **after** the backup and before the restore: after the restore the hub epoch changed, and the member's origin tombstone replaced the restored live claim; the address is not banned/dropped again, a kept ban is |
 | `fresh_observer_no_resurrection` | a brand-new member instance (fresh state, new peer name) enrolled after reconvergence receives the live ban but not the acknowledged-unbanned one |
-| `management_source_unaffected` | see Topology |
+| `management_source_unaffected` | the runner stays unbanned and keeps SSH, TCP/443 and an NS8 admin API login on both guests throughout |
 | `owned_cleanup` | released only run-owned resources; no leftover link or firewall rule |
 
 Optional, only when `disk_rollback=true` (then required): `hub_disk_snapshot_rollback`.
@@ -107,7 +107,7 @@ raw consoles and raw Redis are in a private `0700` directory that is deleted at 
   guest-local `cluster` WebDAV/Restic backup and `upload-certificate` reload must still be exercised by the real run. The installer source is pinned to Core commit `e27e2abbeee37e16e92c23027dbe0d3403aa385c`, Core image `3.25.1`; the password reaches both installer and cluster creation privately. Private-CA upload uses the documented `selfsign` full-chain validation and restores policy `chain` afterward.
 - Existing host IPv4 forwarding is required; the lab refuses a host without it instead of changing global policy. AppArmor policy is not relaxed.
 - Absolute-TTL comparison needs synchronized clocks; skew above 3 s fails `independent_clusters`.
-- The management check proves SSH and TCP reachability from the gateway, not an NS8 admin API login.
+- The management check proves SSH, TCP/443 and a real NS8 admin API login (`POST /cluster-admin/api/login`, HTTP 200, token discarded) from the gateway. The hub login is TLS-verified against the private CA; the member's default Traefik certificate is not verified for this check.
 - Sync cycles are 5 s; waits are bounded (2-4 min per convergence step); the whole job is capped at 90 minutes.
 
 ## Running the offline checks
