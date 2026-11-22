@@ -41,6 +41,8 @@ class InstallDiagnostics(unittest.TestCase):
             self.assertIn('core install log', text)
             self.assertIn('install failed', text)
             self.assertNotIn(secret, text)
+            self.assertIn('core agent journal', text)
+            self.assertIn('memory pressure', text)
             self.assertTrue(any('create-cluster-private.log' in ' '.join(c) for c in lab.runner.calls))
 
 
