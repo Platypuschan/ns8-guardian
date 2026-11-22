@@ -1,0 +1,15 @@
+name: ns8/auth-event
+description: "Trusted local gateway authentication events (no credentials/usernames)"
+filter: "evt.Line.Labels.type == 'ns8_auth_event' && UnmarshalJSON(evt.Line.Raw, evt.Unmarshaled, 'auth') in ['', nil]"
+onsuccess: next_stage
+statics:
+  - meta: log_type
+    value: ns8_authentication_failed
+  - meta: service
+    expression: evt.Unmarshaled.auth.service
+  - meta: source_ip
+    expression: evt.Unmarshaled.auth.source_ip
+  - meta: ns8_event_id
+    expression: evt.Unmarshaled.auth.id
+  - target: evt.StrTime
+    expression: evt.Unmarshaled.auth.occurred_at

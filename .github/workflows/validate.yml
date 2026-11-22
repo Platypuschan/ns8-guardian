@@ -1,0 +1,202 @@
+name: Validate Guardian
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guardian-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  policy:
+    uses: ./.github/workflows/renovate-policy.yml
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check catalog version
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            .github/scripts/check-catalog-version --base "origin/$BASE_REF"
+          elif [[ "$REF_NAME" != "$DEFAULT_BRANCH" ]]; then
+            .github/scripts/check-catalog-version --base "origin/$DEFAULT_BRANCH"
+          else
+            .github/scripts/check-catalog-version
+          fi
+      - name: Build the bundled offline engine
+        run: buildah bud --build-arg "SOURCE_REVISION=$GITHUB_SHA" -f runtime/Containerfile -t localhost/ns8-hybrid-engine:working .
+      - name: Unit tests
+        run: PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=imageroot/pypkg python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Packaging, durable producer and offline runtime regressions
+        run: PYTHONDONTWRITEBYTECODE=1 HYBRID_ENGINE_IMAGE=localhost/ns8-hybrid-engine:working python3 -m unittest discover -s qa -v
+      - name: Shell scripts
+        run: shellcheck build-images.sh runtime/*.sh test-module*.sh tests/*.sh imageroot/actions/*/50execute imageroot/bin/* imageroot/update-module.d/*
+      - name: Detection rules replayed in the bundled image
+        run: HYBRID_ENGINE_IMAGE=localhost/ns8-hybrid-engine:working bash tests/test-rules.sh
+      - name: Autonomous engines, offline restart, reconnect sync and nftables
+        run: HYBRID_ENGINE_IMAGE=localhost/ns8-hybrid-engine:working bash tests/test-e2e.sh
+      - name: Export the exact tested engine
+        run: buildah push localhost/ns8-hybrid-engine:working oci-archive:guardian-engine.tar
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tested-engine
+          path: guardian-engine.tar
+          compression-level: 0
+          retention-days: 3
+  ui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Immutable install with the project-pinned Yarn
+        working-directory: ui
+        run: npm exec --yes --package=@yarnpkg/cli-dist@4.18.0 -- yarn install --immutable
+      - name: UI behavior regressions
+        run: node --test qa/views.test.cjs
+        working-directory: ui
+      - run: npm exec --yes --package=@yarnpkg/cli-dist@4.18.0 -- yarn lint
+        working-directory: ui
+      - name: Build without browser-incompatible Node modules
+        working-directory: ui
+        run: |
+          set -o pipefail
+          npm exec --yes --package=@yarnpkg/cli-dist@4.18.0 -- yarn build 2>&1 | tee build.log
+          ! grep -i "externalized for browser compatibility" build.log
+      - name: Check the PNG logo required by NS8
+        run: test -n "$(find ui/dist/img -name '*logo*.png' -print -quit)"
+  images:
+    needs: [tests, ui, policy]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v8
+        with:
+          name: tested-engine
+      - name: Import the tested engine, without another rule download
+        id: engine
+        run: |
+          engine="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/guardian-engine:sha-${GITHUB_SHA:0:12}"
+          skopeo copy oci-archive:guardian-engine.tar "containers-storage:$engine"
+          printf 'engine=%s\n' "$engine" >> "$GITHUB_OUTPUT"
+      - name: Build and export the NS8 module
+        run: |
+          ./build-images.sh
+          buildah push "${REPOBASE}/guardian" oci-archive:guardian-module.tar
+        env:
+          REPOBASE: ghcr.io/platypuschan
+          CROWDSEC_IMAGE: ${{ steps.engine.outputs.engine }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: guardian-module
+          path: guardian-module.tar
+          compression-level: 0
+          retention-days: 3
+  publish-candidate:
+    needs: images
+    if: github.repository == 'Platypuschan/ns8-guardian' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      module: ${{ steps.publish.outputs.module }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: tested-engine
+      - uses: actions/download-artifact@v8
+        with:
+          name: guardian-module
+      - name: Publish SHA candidates and resolve the module digest
+        id: publish
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          engine="ghcr.io/platypuschan/guardian-engine:sha-${GITHUB_SHA:0:12}"
+          module="ghcr.io/platypuschan/guardian:sha-${GITHUB_SHA:0:12}"
+          skopeo copy oci-archive:guardian-engine.tar "docker://$engine"
+          engine_digest="$(skopeo inspect --format '{{.Digest}}' "docker://$engine")"
+          engine_revision="$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "docker://$engine")"
+          test "$engine_revision" = "$GITHUB_SHA"
+          # Bind metadata to the exact tested/published runtime, not a mutable tag.
+          # This trusted job changes labels only; it never executes repository code.
+          skopeo copy oci-archive:guardian-module.tar containers-storage:localhost/guardian-metadata-input
+          builder="$(buildah from localhost/guardian-metadata-input)"
+          trap 'buildah rm "$builder" >/dev/null' EXIT
+          images="$(skopeo inspect --format '{{index .Labels "org.nethserver.images"}}' containers-storage:localhost/guardian-metadata-input)"
+          bouncer="${images#* }"
+          [[ "$bouncer" =~ ^ghcr.io/nethserver/crowdsec-firewall-bouncer:[^[:space:]]+@sha256:[a-f0-9]{64}$ ]]
+          buildah config --label "org.nethserver.images=ghcr.io/platypuschan/guardian-engine@$engine_digest $bouncer" "$builder"
+          buildah commit "$builder" localhost/guardian-metadata-bound
+          skopeo copy containers-storage:localhost/guardian-metadata-bound "docker://$module"
+          digest="$(skopeo inspect --format '{{.Digest}}' "docker://$module")"
+          revision="$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "docker://$module")"
+          test "$revision" = "$GITHUB_SHA"
+          printf 'module=ghcr.io/platypuschan/guardian@%s\n' "$digest" >> "$GITHUB_OUTPUT"
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  ns8:
+    name: NS8
+    needs: publish-candidate
+    if: github.repository == 'Platypuschan/ns8-guardian' && github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [rocky9, debian13]
+    permissions:
+      contents: read
+      statuses: write
+    uses: NethServer/ns8-github-actions/.github/workflows/test-on-qemu.yml@v1
+    with:
+      distro: ${{ matrix.distro }}
+      image_url: ${{ needs.publish-candidate.outputs.module }}
+      repo_ref: ${{ github.sha }}
+      version_tag: ${{ github.ref_name }}
+      artifact_suffix: install
+      status_suffix: install
+      script: test-module-install.sh
+      timeout_minutes: 60
+  publish-development-image:
+    needs: [publish-candidate, ns8]
+    if: github.repository == 'Platypuschan/ns8-guardian' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: guardian-dev-promotion
+      cancel-in-progress: false
+    steps:
+      - name: Promote only the tested digest to dev
+        run: |
+          if [[ "$(git ls-remote "https://github.com/$GITHUB_REPOSITORY" refs/heads/main | cut -f1)" != "$GITHUB_SHA" ]]; then
+            echo 'A newer main commit exists; skip development promotion.'
+            exit 0
+          fi
+          printf '%s' "$REGISTRY_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          skopeo copy --all --preserve-digests "docker://$MODULE" docker://ghcr.io/platypuschan/guardian:dev
+          test "$(skopeo inspect --format '{{.Digest}}' docker://ghcr.io/platypuschan/guardian:dev)" = "${MODULE##*@}"
+        env:
+          MODULE: ${{ needs.publish-candidate.outputs.module }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,21 @@
+{
+  "name": "Guardian",
+  "description": {
+    "en": "Share locally detected bans between NethServer 8 hosts through a private controller, with an autonomous local engine and firewall on each host.",
+    "de": "Teilt lokal erkannte Sperren zwischen NethServer-8-Hosts über einen privaten Kontrollserver, mit autonomer lokaler Engine und Firewall auf jedem Host."
+  },
+  "categories": [
+    "security"
+  ],
+  "authors": [
+    {
+      "name": "Platypuschan"
+    }
+  ],
+  "docs": {
+    "documentation_url": "https://github.com/Platypuschan/ns8-guardian#readme",
+    "bug_url": "https://github.com/Platypuschan/ns8-guardian/issues",
+    "code_url": "https://github.com/Platypuschan/ns8-guardian"
+  },
+  "source": "ghcr.io/platypuschan/guardian"
+}

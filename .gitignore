@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+ui/node_modules/
+ui/dist/
+.coding-server/
+# CI transfer artifacts are not source changes or runtime inputs.
+/guardian-engine.tar
+/guardian-module.tar
+/ui/build.log

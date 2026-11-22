@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+FROM docker.io/crowdsecurity/crowdsec:v1.8.1-debian@sha256:a5575ae76abd47635b4d2b292ff0412717172bf3a95cc3cbe21f807fb934620a
+ARG SOURCE_REVISION=uncommitted
+LABEL org.opencontainers.image.source="https://github.com/Platypuschan/ns8-guardian" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.title="Guardian offline engine"
+# Downloads happen only at image build time. The generated manifest records the
+# exact rules/data snapshot; rebuilding may consume a newer public Hub snapshot.
+RUN mkdir -p /etc/crowdsec /var/lib/crowdsec/data && \
+    cp -a /staging/etc/crowdsec/. /etc/crowdsec/ && \
+    yq -i '.cscli.hub_branch = "master" | del(.api.server.online_client)' /etc/crowdsec/config.yaml && \
+    cscli hub update && \
+    cscli parsers install crowdsecurity/docker-logs crowdsecurity/cri-logs && \
+    cscli collections install crowdsecurity/linux && \
+    cp -a /etc/crowdsec/. /staging/etc/crowdsec/ && \
+    cp -a /var/lib/crowdsec/data/. /staging/var/lib/crowdsec/data/ && \
+    find /staging/etc/crowdsec /staging/var/lib/crowdsec/data -type f -exec sha256sum '{}' + > /ruleset-manifest.sha256
+COPY runtime/disable-hub-downloads.sh /usr/local/libexec/disable-hub-downloads.sh
+RUN bash /usr/local/libexec/disable-hub-downloads.sh /docker_start.sh && bash -O extglob -n /docker_start.sh
+ENV DISABLE_ONLINE_API=true NO_HUB_UPGRADE=true

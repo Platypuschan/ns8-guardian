@@ -1,0 +1,13 @@
+type: leaky
+name: ns8/auth-events-bf
+description: "Repeated authentication failures from a registered application"
+filter: "evt.Meta.log_type == 'ns8_authentication_failed'"
+groupby: "evt.Meta.source_ip + '/' + evt.Meta.service"
+distinct: evt.Meta.ns8_event_id
+capacity: 4
+leakspeed: 10s
+blackhole: 1m
+labels:
+  service: ns8-auth-events
+  type: bruteforce
+  remediation: true
