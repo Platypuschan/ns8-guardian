@@ -426,3 +426,22 @@ class Workflow(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ReleaseNotesLimits(unittest.TestCase):
+    """rc.3 notes must stay byte-identical (idempotent retry of the published release); later RCs state the current limits."""
+    def test_rc3_notes_keep_the_original_limitations(self):
+        body = load().release_notes('1', SHA, DIGEST, '0.2.0-rc.3')
+        self.assertIn('Consumer ACK/replay and append/consume crash-window guarantees remain incomplete.', body)
+
+    def test_later_rcs_describe_ack_replay_and_what_remains_open(self):
+        body = load().release_notes('1', SHA, DIGEST, '0.2.0-rc.7')
+        self.assertNotIn('remain incomplete', body)
+        for text in ('engine-generation', 'at-least-once', 'not exactly-once', 'two-node', 'not a WAF', 'update-module', 'add-module', 'ACK', 'WAF'):
+            self.assertIn(text, body)
+        self.assertNotIn('Two-node NS8, host reboot, backup/restore and application-adapter acceptance remain', body)
+        self.assertIn(DIGEST, body)
+
+    def test_notes_are_deterministic(self):
+        p = load()
+        self.assertEqual(p.release_notes('1', SHA, DIGEST, '0.2.0-rc.7'), p.release_notes('1', SHA, DIGEST, '0.2.0-rc.7'))

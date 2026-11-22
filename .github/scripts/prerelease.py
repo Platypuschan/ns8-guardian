@@ -127,8 +127,26 @@ def preflight(run_id, sha, digest, version):
             'Runtime differs from published SHA candidate')
 
 
+LEGACY_LIMITS = '''Consumer ACK/replay and append/consume crash-window guarantees remain incomplete.
+Two-node NS8, host reboot, backup/restore and application-adapter acceptance remain
+open. No generic HTTP WAF or blanket application-login coverage is claimed.
+Single-node Debian 13 and Rocky 9 install smoke tests are not production approval.'''
+
+CURRENT_LIMITS = '''Consumer ACK: events are acknowledged per engine-generation (read offset of the same
+engine process plus a settle time); after an engine restart unacknowledged and recently
+acknowledged events are replayed, except for addresses unbanned since. This is
+at-least-once for events younger than the replay window (120 s), not exactly-once;
+a restored database never replays. Evidence: the hosted two-node NS8 lab (reboots,
+backup/restore, engine restart replay, private-CA enrollment) for the exact digest above.
+Remaining limits: application adapters are accepted per application; two generic HTTP
+scanner rules exist but this is not a WAF and not universal application-login coverage;
+no multi-day soak and no upgrade-path acceptance from earlier RCs are claimed.
+This prerelease is not production approval.'''
+
+
 def release_notes(run_id, sha, digest, version):
     module = IMAGE + '@' + digest
+    limits = LEGACY_LIMITS if version == '0.2.0-rc.3' else CURRENT_LIMITS
     return f'''# Guardian {version} — prerelease, not production approval
 
 Source SHA: `{sha}`
@@ -137,10 +155,7 @@ Validation: https://github.com/{REPO}/actions/runs/{run_id}
 The same tested manifest is promoted without rebuild or relabeling.
 
 ## Known limitations
-Consumer ACK/replay and append/consume crash-window guarantees remain incomplete.
-Two-node NS8, host reboot, backup/restore and application-adapter acceptance remain
-open. No generic HTTP WAF or blanket application-login coverage is claimed.
-Single-node Debian 13 and Rocky 9 install smoke tests are not production approval.
+{limits}
 
 ## Install by digest
 Inventory existing modules, backups, allowlists and rollback before changing a host.
