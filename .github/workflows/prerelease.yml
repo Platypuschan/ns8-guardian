@@ -1,0 +1,74 @@
+name: Guardian prerelease
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful Validate Guardian push-to-main run ID
+        required: true
+        type: string
+      tested_sha:
+        description: Exact tested main commit (40 lowercase hex characters)
+        required: true
+        type: string
+      module_digest:
+        description: Immutable tested Guardian module digest (sha256:...)
+        required: true
+        type: string
+      version:
+        description: RC version equal to tested CATALOG_VERSION (no v prefix)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: guardian-prerelease-promotion
+  cancel-in-progress: false
+jobs:
+  offline-regressions:
+    if: >-
+      github.repository == 'Platypuschan/ns8-guardian' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Platypuschan/ns8-guardian
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Offline boundary-stub regressions (not real registry acceptance)
+        run: python3 -m unittest discover -s qa -p 'test_prerelease*.py' -v
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+  promote:
+    needs: offline-regressions
+    if: >-
+      github.repository == 'Platypuschan/ns8-guardian' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+    steps:
+      # Execute only the trusted dispatch/main snapshot, never tested_sha code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Platypuschan/ns8-guardian
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require registry transport
+        run: command -v skopeo
+      - name: Promote and verify the immutable tested candidate
+        run: python3 .github/scripts/prerelease.py
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          TESTED_SHA: ${{ inputs.tested_sha }}
+          MODULE_DIGEST: ${{ inputs.module_digest }}
+          VERSION: ${{ inputs.version }}
+          PYTHONDONTWRITEBYTECODE: '1'
