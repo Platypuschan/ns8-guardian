@@ -80,7 +80,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-system-x86 qemu-utils cloud-image-utils skopeo acl openssl
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils cloud-image-utils skopeo openssl
           sudo modprobe tun
       - name: Record runner capacity (the launcher fails closed on its own checks)
         run: |

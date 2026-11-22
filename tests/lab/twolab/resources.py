@@ -43,6 +43,12 @@ class Step:
     argv: tuple
 
 
+def kvm_rule_path(run_id):
+    if not re.fullmatch(r'[0-9a-f]{8}', run_id):
+        raise ValueError('run id must be 8 lowercase hex digits')
+    return '/etc/udev/rules.d/99-glab-kvm-%s.rules' % run_id
+
+
 def _destroy_argv(kind, name, workdir):
     if kind == 'iptables':
         return tuple(json.loads(name))
@@ -53,16 +59,16 @@ def _destroy_argv(kind, name, workdir):
     if kind == 'qemu':
         # Pseudo-command handled by the CLI runner: verifies /proc/<pid>/cmdline names this run before killing.
         return ('@kill-qemu', '%s/%s.pid' % (workdir, name.rsplit('-', 1)[1]), name)
-    if kind == 'acl':
-        import getpass
-        return ('sudo', 'setfacl', '-x', 'u:' + getpass.getuser(), '/dev/kvm')
+    if kind == 'udev':
+        rule = kvm_rule_path(name.rsplit('-', 1)[1])
+        return ('sudo', 'sh', '-ec', 'rm -f %s; udevadm control --reload-rules; udevadm trigger --name-match=kvm; udevadm settle' % rule)
     if kind == 'dir':
         return ('rm', '-rf', '--one-file-system', name)
     raise ValueError('unknown resource kind ' + kind)
 
 
 class Ledger:
-    KINDS = ('link', 'container', 'qemu', 'dir', 'acl', 'iptables')
+    KINDS = ('link', 'container', 'qemu', 'dir', 'udev', 'iptables')
 
     def __init__(self, names):
         self.names = names
@@ -76,7 +82,7 @@ class Ledger:
             'container': (self.names.s3_container,),
             'qemu': (self.names.qemu_name('hub'), self.names.qemu_name('member')),
             'dir': (self.names.workdir,),
-            'acl': ('kvm-acl-' + self.names.run_id,),
+            'udev': ('kvm-udev-' + self.names.run_id,),
         }
         if not isinstance(name, str):
             raise ValueError('resource name must be a string')

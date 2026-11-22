@@ -21,7 +21,7 @@ from .config import ConfigError, parse_inputs
 from .guestops import GuestOps, parse_api
 from .images import ChecksumError, IMAGES, parse_checksums, verify_file
 from .net import link_state_command, net_create_commands, net_delete_commands
-from .resources import Ledger, Names, new_run_id, pick_subnet
+from .resources import Ledger, Names, kvm_rule_path, new_run_id, pick_subnet
 from .sanitize import Sanitizer
 from .scenario import ALLOWLIST_CIDR, run_scenario
 from .source import SourceError, expected_runtime_digests, source_evidence
@@ -142,8 +142,15 @@ class Lab:
                 info = dict(info, disk_free_bytes=shutil.disk_usage(Path(self.names.workdir).parent).free)
             kvm = info['kvm']
             if kvm['exists'] and not (kvm['readable'] and kvm['writable']):
-                self.local(['sudo', 'setfacl', '-m', 'u:%s:rw' % info['user'], '/dev/kvm'])
-                self.own('acl', 'kvm-acl-' + self.run_id)
+                # A one-shot setfacl is reset when udev re-applies its rules on a KVM change event (hosted run
+                # 45027781330: first QEMU started, second got EACCES). A run-owned udev rule persists until cleanup.
+                if not re.fullmatch(r'[a-z_][a-z0-9_-]{0,31}', info['user']):
+                    raise Abort('unexpected runner user name')
+                self.own('udev', 'kvm-udev-' + self.run_id)
+                rule = 'KERNEL=="kvm", OWNER="%s", GROUP="kvm", MODE="0660"' % info['user']
+                self.local(['sudo', 'sh', '-ec', "umask 022; printf '%%s\\n' '%s' > %s; udevadm control --reload-rules; "
+                            'udevadm trigger --name-match=kvm; udevadm settle' % (rule, kvm_rule_path(self.run_id))])
+                self.local(['sh', '-c', 'test -r /dev/kvm && test -w /dev/kvm'])
                 kvm = {'exists': True, 'readable': True, 'writable': True}
             report = check_capacity(info['meminfo_text'], info['disk_free_bytes'], info['cpus'], kvm, self.cfg)
             self.user = info['user']
