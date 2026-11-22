@@ -1,0 +1,131 @@
+name: Guardian two-node lab
+# Manual, read-only acceptance of an immutable published Guardian module on TWO independent full NS8 VMs
+# (hub cluster + member cluster) running under KVM on one hosted runner. See docs/two-node-lab.md.
+on:
+  workflow_dispatch:
+    inputs:
+      module_digest:
+        description: Immutable Guardian module digest under ghcr.io/platypuschan/guardian (sha256:...)
+        required: true
+        type: string
+        default: sha256:de710c02de9215879b5bfa120f61e8b2901f2f7b0cfe5031cda12213da09ac71
+      expected_source_sha:
+        description: Full source commit the module image must declare in its revision label
+        required: true
+        type: string
+        default: 4d8c243478fc9bd3c04ca813a27b6d70123b0b6d
+      expected_version:
+        description: Version the module image must declare (no v prefix)
+        required: true
+        type: string
+        default: 0.2.0-rc.3
+      hub_distro:
+        description: Hub guest distribution
+        required: true
+        type: choice
+        default: debian13
+        options: [debian13, rocky9]
+      member_distro:
+        description: Member guest distribution
+        required: true
+        type: choice
+        default: rocky9
+        options: [rocky9, debian13]
+      disk_rollback:
+        description: Also run the optional single-VM disk snapshot rollback case (distinct from the native NS8 restore)
+        required: true
+        type: choice
+        default: 'false'
+        options: ['false', 'true']
+permissions:
+  contents: read
+concurrency:
+  group: guardian-two-node-lab
+  cancel-in-progress: false
+jobs:
+  offline-regressions:
+    if: >-
+      github.repository == 'Platypuschan/ns8-guardian' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Platypuschan/ns8-guardian
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Offline lab regressions (mocks are labelled; they are not real NS8)
+        run: python3 -B -m unittest discover -s qa -p 'test_two_node_lab*.py' -v
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+  lab:
+    needs: offline-regressions
+    if: >-
+      github.repository == 'Platypuschan/ns8-guardian' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Platypuschan/ns8-guardian
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install QEMU, cloud-image tooling and registry inspection
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils cloud-image-utils skopeo acl openssl
+          sudo modprobe tun
+      - name: Record runner capacity (the launcher fails closed on its own checks)
+        run: |
+          set -Eeuo pipefail
+          nproc
+          free -m
+          df -h /
+          ls -l /dev/kvm
+      - name: Run the two-VM lab
+        id: lab
+        run: python3 -B -m twolab run --out lab-out
+        env:
+          PYTHONPATH: tests/lab
+          PYTHONDONTWRITEBYTECODE: '1'
+          LAB_ROOT: ${{ github.workspace }}
+          LAB_REPO: ${{ github.workspace }}
+          # GITHUB_SHA/REPOSITORY/REF/RUN_ID/RUN_ATTEMPT/EVENT_NAME are provided by the runner itself.
+          MODULE_DIGEST: ${{ inputs.module_digest }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          HUB_DISTRO: ${{ inputs.hub_distro }}
+          MEMBER_DISTRO: ${{ inputs.member_distro }}
+          DISK_ROLLBACK: ${{ inputs.disk_rollback }}
+      - name: Release any resources left by a killed launcher
+        if: always()
+        working-directory: tests/lab
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          for dir in "${RUNNER_TEMP}"/gl-*; do
+            python3 -B -m twolab cleanup --run-id "${dir##*/gl-}" --workdir "${dir}"
+          done
+        env:
+          PYTHONPATH: .
+          PYTHONDONTWRITEBYTECODE: '1'
+      - name: Publish the explicit sanitized summary
+        if: always()
+        run: |
+          set -Eeuo pipefail
+          if [ -f lab-out/public/summary.md ]; then cat lab-out/public/summary.md >> "${GITHUB_STEP_SUMMARY}"; fi
+      - name: Upload the sanitized result (never raw logs, keys, seeds or tokens)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: two-node-lab-${{ github.run_id }}-${{ github.run_attempt }}
+          path: lab-out/public/
+          if-no-files-found: warn
+          retention-days: 14
