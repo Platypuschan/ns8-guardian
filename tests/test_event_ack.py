@@ -145,6 +145,21 @@ class AckTests(unittest.TestCase):
         self.assertEqual(lines.count(a['id']), 1)
         self.assertEqual(lines.count(b['id']), 2)
 
+    def test_restored_database_never_replays_or_requeues_old_events(self):
+        # hosted run 45038765312: replay re-banned an address that was unbanned after the backup was taken
+        self.send(3, '203.0.113.70')
+        self.deliver(); self.engine.consume(); self.tick(hybrid.ACK_SETTLE + 1); self.store.ack_events(self.engine.state)
+        item, = self.send(1, '203.0.113.71')
+        self.deliver()                                  # appended, not yet acked when the snapshot was taken
+        self.store.new_epoch()                          # what restore_database() does after copying the snapshot
+        self.engine.restart()                           # the restored module starts a new engine
+        self.assertEqual(self.store.ack_events(self.engine.state), {'acked': 0, 'requeued': 0, 'replayed': 0})
+        self.assertEqual(self.deliver(), 0)
+        lines = [json.loads(l)['id'] for l in self.log.read_text().splitlines()]
+        self.assertEqual(lines.count(item['id']), 1)
+        self.assertEqual(self.store.event_status()['replayed_total'], 0)
+        self.assertEqual(self.store.event_status()['unacked'], 0)
+
     def test_first_observation_never_replays_and_same_generation_never_replays(self):
         self.send(2)
         self.deliver(); self.engine.consume(); self.tick(hybrid.ACK_SETTLE + 1)

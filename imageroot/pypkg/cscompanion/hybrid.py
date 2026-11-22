@@ -115,6 +115,10 @@ class Store:
         """Forget what peers know: used after the database was restored from a snapshot."""
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO meta VALUES('epoch',?)", (str(uuid.uuid4()),))
+            # Events of the snapshot belong to a past that may contain addresses unbanned elsewhere since: never
+            # requeue or replay them into the restored engine, and forget the engine generation they refer to.
+            db.execute('UPDATE events SET appended_gen=NULL, acked=NULL WHERE delivered=1')
+            db.execute("DELETE FROM meta WHERE key='engine_gen'")
 
     def known_credential(self, kind, token):
         """Cheap pre-parse authentication check (kind: 'peer' or 'source')."""
