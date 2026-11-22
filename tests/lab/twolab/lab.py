@@ -547,6 +547,7 @@ class Lab:
                                ('core install log', 'tail -n 120 /root/install.log 2>&1'),
                                ('create-cluster log', 'tail -n 60 /root/create-cluster-private.log 2>&1'),
                                ('core agent journal', "journalctl -b --no-pager -n 200 -u agent@cluster -u agent@node -u 'agent@traefik*' 2>&1"),
+                               ('rootless module agent journal', 'journalctl -b --no-pager -n 250 _UID=1000 2>&1; journalctl -b --no-pager -n 60 -u user@1000 2>&1'),
                                ('memory pressure', "journalctl -k -b --no-pager 2>&1 | grep -iE 'out of memory|killed process' | tail -n 20; free -m")):
                 try:
                     parts.append('== %s\n%s' % (title, guest.run(cmd, check=False, timeout=60)[1]))

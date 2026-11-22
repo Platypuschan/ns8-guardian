@@ -43,6 +43,7 @@ class InstallDiagnostics(unittest.TestCase):
             self.assertNotIn(secret, text)
             self.assertIn('core agent journal', text)
             self.assertIn('memory pressure', text)
+            self.assertIn('rootless module agent journal', text)
             self.assertTrue(any('create-cluster-private.log' in ' '.join(c) for c in lab.runner.calls))
 
 
