@@ -23,7 +23,7 @@ from .images import ChecksumError, IMAGES, parse_checksums, verify_file
 from .net import net_create_commands, net_delete_commands
 from .resources import Ledger, Names, kvm_rule_path, new_run_id, pick_subnet
 from .sanitize import Sanitizer
-from .scenario import ALLOWLIST_CIDR, run_scenario
+from .scenario import ALLOWLIST_CIDR, DISK_ROLLBACK_PROBE, run_scenario
 from .source import SourceError, expected_runtime_digests, source_evidence
 from .ssh import Guest, RemoteError, subprocess_runner
 from .vm import cloud_init_files, kill_owned_qemu, qemu_argv, qemu_running, seed_command, snapshot_commands
@@ -525,7 +525,7 @@ class Lab:
             names = sorted(m['name'] for m in members)
             if 'observer1' in names:
                 raise ev.EvidenceError('hub still lists an enrollment created after the snapshot: not an older state')
-            probe = '198.51.100.31'
+            probe = DISK_ROLLBACK_PROBE
             before = hub.reachable(probe)
             hub.ban_by_events(probe)
             self.wait_for(lambda: ev.nft_has_ip(hub.nft(), probe), 120, 'local ban after disk rollback')

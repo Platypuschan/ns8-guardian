@@ -19,10 +19,11 @@ Y_KEEP = '198.51.100.27'
 F_POST_REBOOT = '198.51.100.28'
 G_POST_REBOOT_HUB = '198.51.100.29'
 H_ENGINE_RESTART = '198.51.100.30'   # not an attacker-namespace address: only decisions/nftables are observed
+DISK_ROLLBACK_PROBE = '198.51.100.31'   # banned/probed only by the optional disk-rollback case
 ALLOWLISTED = '198.51.100.241'
 ALLOWLIST_CIDR = '198.51.100.240/29'
 ATTACKER_IPS = [A_MEMBER, B_HUB, C_OUTAGE_MEMBER, D_OUTAGE_HUB, E_UNBAN_DURING_OUTAGE, X_UNBAN_AFTER_BACKUP, Y_KEEP,
-                F_POST_REBOOT, G_POST_REBOOT_HUB, ALLOWLISTED]
+                F_POST_REBOOT, G_POST_REBOOT_HUB, DISK_ROLLBACK_PROBE, ALLOWLISTED]
 MIN_OUTAGE_SECONDS = 130
 
 
@@ -313,7 +314,8 @@ class Scenario:
             state = hub.hybrid_state()
             ev.assert_origin_tombstone([r for r in state['claims'] if r['value'] == X_UNBAN_AFTER_BACKUP], X_UNBAN_AFTER_BACKUP, member.peer_name())
             _require(wait_until(self.clock, lambda: _decision(hub, X_UNBAN_AFTER_BACKUP) is None, 120), 'unbanned address is banned again on the hub')
-            _require(hub.reachable(X_UNBAN_AFTER_BACKUP), 'unbanned address dropped on the hub after restore')
+            # the restored bouncer polls: nftables follow the decision with a delay, so wait instead of sampling once
+            _require(wait_until(self.clock, lambda: hub.reachable(X_UNBAN_AFTER_BACKUP), 90, 5), 'unbanned address dropped on the hub after restore')
             _require(_decision(member, X_UNBAN_AFTER_BACKUP) is None and member.reachable(X_UNBAN_AFTER_BACKUP), 'unbanned address back on the member')
             _require(wait_until(self.clock, lambda: _decision(hub, Y_KEEP) is not None, 120) and not hub.reachable(Y_KEEP), 'kept ban lost on the hub')
             return {'epoch_before': ctx['epoch_before'], 'epoch_after': after['epoch'], 'tombstone_origin': member.peer_name(),
