@@ -16,7 +16,11 @@ if [[ -z "${CROWDSEC_IMAGE:-}" ]]; then
     buildah bud --build-arg "SOURCE_REVISION=${revision}" -f runtime/Containerfile -t "$crowdsec_image" .
 fi
 builder=""
-cleanup() { if [[ -n "${builder}" ]]; then buildah rm "${builder}" >/dev/null; fi; }
+stage=""
+cleanup() {
+    if [[ -n "${builder}" ]]; then buildah rm "${builder}" >/dev/null; fi
+    if [[ -n "${stage}" ]]; then rm -rf "${stage}"; fi
+}
 trap cleanup EXIT
 # Never infer source freshness from the presence of a previous build directory.
 (
@@ -26,8 +30,11 @@ trap cleanup EXIT
     env -u YARN_NO_PROXY npm exec --yes --package="@yarnpkg/cli-dist@${yarn_version}" -- yarn build
 )
 builder="$(buildah from scratch)"
+# Filter a portable archive: hosted Ubuntu Buildah lacks add --exclude.
 # Local test imports must never inject cached executable code into the package.
-buildah add --exclude '**/__pycache__' --exclude '**/*.pyc' --exclude '**/*.pyo' "${builder}" imageroot /imageroot
+stage="$(mktemp -d)"
+tar --exclude='__pycache__' --exclude='*.pyc' --exclude='*.pyo' -C imageroot -cf "$stage/imageroot.tar" .
+buildah add "${builder}" "$stage/imageroot.tar" /imageroot
 buildah add --chmod=0755 "${builder}" sdk/report_auth.py /imageroot/bin/report-auth-event
 buildah add "${builder}" ui/dist /ui
 buildah config --entrypoint=/ \
