@@ -542,7 +542,10 @@ class Lab:
                                ('guardian units', "journalctl -b --no-pager -n 400 -u 'guardian*'"),
                                ('containers', "podman ps -a --format '{{.Names}} {{.Status}} {{.ImageDigest}}'"),
                                ('nft', g.nft_table_cmd()), ('netns', 'ip netns list'),
-                               ('kernel warnings', 'journalctl -b -p warning --no-pager -n 120')):
+                               ('kernel warnings', 'journalctl -b -p warning --no-pager -n 120'),
+                               # Sanitized (registered secrets and key=value patterns are redacted by the sanitizer).
+                               ('core install log', 'tail -n 120 /root/install.log 2>&1'),
+                               ('create-cluster log', 'tail -n 60 /root/create-cluster-private.log 2>&1')):
                 try:
                     parts.append('== %s\n%s' % (title, guest.run(cmd, check=False, timeout=60)[1]))
                 except Exception as error:      # diagnostics must never mask the verdict
