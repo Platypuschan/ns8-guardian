@@ -205,7 +205,10 @@ class GuestOps:
             for entry in entries:
                 if not isinstance(entry, dict):
                     raise RemoteError('invalid installed module entry')
-                if entry.get('module') == 'guardian' and entry.get('node') == str(self.node_id):
+                # Core splits a digest-pinned ref at ':' (source '...guardian@sha256', module 'guardian@sha256'),
+                # so identify Guardian by its source repository, never by the module name.
+                source = str(entry.get('source', '')).split('@')[0]
+                if source == 'ghcr.io/platypuschan/guardian' and entry.get('node') == str(self.node_id):
                     result.append(g.valid_module(entry['id']))
         return result
 

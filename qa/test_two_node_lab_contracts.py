@@ -139,7 +139,7 @@ class RestoreContract(unittest.TestCase):
                     count.append(1)
                     r.calls.append((list(argv), input))
                     return 0, json.dumps({} if len(count) == 1 else {'ghcr.io/platypuschan/guardian': [
-                        {'id': 'guardian2', 'module': 'guardian', 'node': '1'}]})
+                        {'id': 'guardian2', 'source': 'ghcr.io/platypuschan/guardian', 'module': 'guardian', 'node': '1'}]})
                 return original(argv, input, timeout)
             ops.guest.runner = runner
             info = {'module_uuid': UUID, 'path': 'guardian/' + UUID, 'snapshot': 'b' * 64, 'repository': UUID}

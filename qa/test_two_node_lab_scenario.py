@@ -147,6 +147,8 @@ class MockOps:
     def ban_by_events(self, ip, count=6):
         if ip in self.allowlist():
             return
+        if self.c.m.get('slow_outage_ban') and not self.c.link:
+            self.c.sleep(self.c.m['slow_outage_ban'])      # real runs spend ~1 min detecting the stale hub first
         self.n.decisions[ip] = {'scenario': 'crowdsec/lab', 'expires_at': self.c.t + TTL}
     def allowlist(self): return {'198.51.100.241'}
     def unban(self, ip):
@@ -221,6 +223,13 @@ class Scenario(unittest.TestCase):
         ups = [t for r, up, t in c.link_log if up]
         self.assertTrue(downs and ups)
         self.assertGreaterEqual(ups[0] - downs[0], 120)
+
+    def test_outage_stays_long_enough_after_the_ban_even_when_the_ban_itself_is_slow(self):
+        # hosted run 45032689667: the ban was recorded ~90s into the outage, leaving only 37s before reconnect
+        result, _ = run(slow_outage_ban=60)
+        self.assertEqual(status(result, 'absolute_ttl'), 'pass', reason(result, 'absolute_ttl'))
+        case = [x for x in result['cases'] if x['id'] == 'absolute_ttl'][0]
+        self.assertGreaterEqual(case['evidence']['delay_before_import_seconds'], 120)
 
     def test_ttl_restart_at_import_is_caught(self):
         result, _ = run(reset_ttl=True)

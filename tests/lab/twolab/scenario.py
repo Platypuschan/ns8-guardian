@@ -154,7 +154,9 @@ class Scenario:
                 _require(_decision(self.hub, E_UNBAN_DURING_OUTAGE) is not None, 'hub lost E without any link')
                 _require(_decision(self.hub, C_OUTAGE_MEMBER) is None and _decision(self.member, D_OUTAGE_HUB) is None,
                          'ban crossed a disconnected link')
-                self.clock.sleep(max(0, MIN_OUTAGE_SECONDS - (self.clock.now() - outage['down_at'])))
+                # Measure from the member ban (the TTL origin), not from the link cut: detecting the stale hub
+                # already consumes a minute or more (hosted run 45032689667 left only 37s).
+                self.clock.sleep(max(0, MIN_OUTAGE_SECONDS - (self.clock.now() - outage['member_ban_at'])))
                 outage['member_local'], outage['hub_local'] = local, hub_local
             finally:
                 self.host.set_link('hub', True)
