@@ -235,14 +235,14 @@ class Lab:
     def install_cluster(self, role):
         guest = self.guests[role]
         password = self.secrets['admin_' + role]
-        guest.run('set -eu; umask 077; IFS= read -r pw; cd /root; if [ -d /etc/apt/apt.conf.d ]; then echo \'Acquire::Retries "5";\' > /etc/apt/apt.conf.d/80-lab-retries; fi; '
+        guest.run('set -eu; umask 022; IFS= read -r pw; install -m 600 /dev/null /root/install.log; cd /root; if [ -d /etc/apt/apt.conf.d ]; then echo \'Acquire::Retries "5";\' > /etc/apt/apt.conf.d/80-lab-retries; fi; '
                   'curl -fsSL --retry 3 -o install.sh https://raw.githubusercontent.com/NethServer/ns8-core/%s/core/install.sh; '
                   'sha256sum install.sh; ADMIN_PASSWORD="$pw" bash install.sh %s '
                   'ghcr.io/nethserver/traefik:4.2.6 ghcr.io/nethserver/ldapproxy:1.4.0 '
                   'ghcr.io/nethserver/loki:1.5.3 ghcr.io/nethserver/metrics:1.7.1 '
                   '>/root/install.log 2>&1' % (CORE_INSTALLER_REF, CORE_IMAGE),
                   stdin=password + '\n', secret_stdin=True, timeout=1800)
-        guest.run('set -eu; umask 077; IFS= read -r pw; create-cluster %s:55820 %s "$pw" '
+        guest.run('set -eu; umask 022; IFS= read -r pw; install -m 600 /dev/null /root/create-cluster-private.log; create-cluster %s:55820 %s "$pw" '
                   '>/root/create-cluster-private.log 2>&1' % (self.addr[role], VPN[role]),
                   stdin=password + '\n', secret_stdin=True, timeout=900)
 
