@@ -13,6 +13,12 @@ class CIContract(unittest.TestCase):
         self.assertIn('name: tested-engine', text)
         self.assertIn('CROWDSEC_IMAGE: ${{ steps.engine.outputs.engine }}', text)
 
+    def test_archive_imports_use_buildah_user_namespace_not_standalone_skopeo(self):
+        text = (ROOT / '.github/workflows/validate.yml').read_text()
+        self.assertNotIn('containers-storage:', text)
+        self.assertIn('buildah pull --quiet oci-archive:guardian-engine.tar', text)
+        self.assertIn('buildah from oci-archive:guardian-module.tar', text)
+
     def test_readonly_build_and_owner_scoped_candidate_publication_are_distinct(self):
         text = (ROOT / '.github/workflows/validate.yml').read_text()
         self.assertIn('  publish-candidate:', text)

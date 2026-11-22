@@ -98,7 +98,8 @@ jobs:
         id: engine
         run: |
           engine="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/guardian-engine:sha-${GITHUB_SHA:0:12}"
-          skopeo copy oci-archive:guardian-engine.tar "containers-storage:$engine"
+          id="$(buildah pull --quiet oci-archive:guardian-engine.tar)"
+          buildah tag "$id" "$engine"
           printf 'engine=%s\n' "$engine" >> "$GITHUB_OUTPUT"
       - name: Build and export the NS8 module
         run: |
@@ -141,15 +142,14 @@ jobs:
           test "$engine_revision" = "$GITHUB_SHA"
           # Bind metadata to the exact tested/published runtime, not a mutable tag.
           # This trusted job changes labels only; it never executes repository code.
-          skopeo copy oci-archive:guardian-module.tar containers-storage:localhost/guardian-metadata-input
-          builder="$(buildah from localhost/guardian-metadata-input)"
+          builder="$(buildah from oci-archive:guardian-module.tar)"
           trap 'buildah rm "$builder" >/dev/null' EXIT
-          images="$(skopeo inspect --format '{{index .Labels "org.nethserver.images"}}' containers-storage:localhost/guardian-metadata-input)"
+          images="$(buildah inspect --format '{{index .OCIv1.Config.Labels "org.nethserver.images"}}' "$builder")"
           bouncer="${images#* }"
           [[ "$bouncer" =~ ^ghcr.io/nethserver/crowdsec-firewall-bouncer:[^[:space:]]+@sha256:[a-f0-9]{64}$ ]]
           buildah config --label "org.nethserver.images=ghcr.io/platypuschan/guardian-engine@$engine_digest $bouncer" "$builder"
           buildah commit "$builder" localhost/guardian-metadata-bound
-          skopeo copy containers-storage:localhost/guardian-metadata-bound "docker://$module"
+          buildah push localhost/guardian-metadata-bound "docker://$module"
           digest="$(skopeo inspect --format '{{.Digest}}' "docker://$module")"
           revision="$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "docker://$module")"
           test "$revision" = "$GITHUB_SHA"
