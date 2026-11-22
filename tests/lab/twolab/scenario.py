@@ -161,7 +161,7 @@ class Scenario:
                 outage['up_at'] = self.clock.now()
             return {'outage_seconds': round(outage['up_at'] - outage['down_at']), 'member_sync_error': outage['member_error'],
                     'member_ban_dropped_while_hub_down': True, 'hub_ban_dropped_while_isolated': True,
-                    'link_cut': 'host tap of the hub guest set down (specific owned link)'}
+                    'link_cut': 'hub<->member traffic dropped by an owned nft table in both guests; host management stayed up'}
         ok = self.case('hub_unreachable_local_protection', run_outage)
         ctx['outage'] = outage
 

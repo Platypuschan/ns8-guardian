@@ -20,7 +20,7 @@ from .cases import REQUIRED_CASES, Report
 from .config import ConfigError, parse_inputs
 from .guestops import GuestOps, parse_api
 from .images import ChecksumError, IMAGES, parse_checksums, verify_file
-from .net import link_state_command, net_create_commands, net_delete_commands
+from .net import net_create_commands, net_delete_commands
 from .resources import Ledger, Names, kvm_rule_path, new_run_id, pick_subnet
 from .sanitize import Sanitizer
 from .scenario import ALLOWLIST_CIDR, run_scenario
@@ -516,6 +516,27 @@ class Lab:
                     'note': 'single-VM qcow2 snapshot rollback; NOT an NS8 backup restore, no new hub epoch is created'}
         self.stage('hub_disk_snapshot_rollback', rollback)
 
+    CUT_TABLE = 'glab_cut'
+
+    def set_peer_link(self, role, up):
+        """Sever (or restore) ONLY hub<->member traffic with an owned nft table inside each guest.
+
+        The host tap stays up: the lab's SSH management channel to both guests must survive the outage."""
+        if role != 'hub':
+            raise ValueError('unsupported link role')
+        for here, other in (('hub', 'member'), ('member', 'hub')):
+            guest, peer_ip = self.guests[here], self.addr[other]
+            if up:
+                guest.run('nft delete table inet %s 2>/dev/null || true' % self.CUT_TABLE, timeout=60)
+                rc, _ = guest.run('nft list table inet %s' % self.CUT_TABLE, check=False, timeout=60)
+                if rc == 0:
+                    raise Abort('%s: peer cut table could not be removed' % here)
+            else:
+                ruleset = ('table inet %(t)s {\n chain in { type filter hook input priority -300; policy accept; ip saddr %(ip)s drop; }\n'
+                           ' chain out { type filter hook output priority -300; policy accept; ip daddr %(ip)s drop; }\n}\n'
+                           % {'t': self.CUT_TABLE, 'ip': peer_ip})
+                guest.run('nft delete table inet %s 2>/dev/null || true; nft -f -' % self.CUT_TABLE, stdin=ruleset, timeout=60)
+
     def stage_scenario(self):
         hub, member = self.ops['hub'], self.ops['member']
         for ops in (hub, member):
@@ -524,7 +545,7 @@ class Lab:
         class Host:
             def __init__(inner, lab): inner.lab = lab
             def set_link(inner, role, up):
-                inner.lab.local(link_state_command(inner.lab.names, role, up))
+                inner.lab.set_peer_link(role, up)
 
         class Clock:
             def __init__(inner, lab): inner.lab = lab
@@ -593,13 +614,27 @@ class Lab:
         self.out.mkdir(parents=True, exist_ok=True)
         files = {'result.json': json.dumps(result, indent=2, sort_keys=True) + '\n',
                  'source-evidence.json': json.dumps(getattr(self, 'source', {'error': 'unavailable'}), indent=2, sort_keys=True) + '\n',
-                 'transcript.json': json.dumps(self.transcript, indent=1)[:2_000_000],
+                 'transcript.json': json.dumps(self.transcript[-2000:], indent=1),
                  'summary.md': self.summary(result)}
         files.update(extra)
         for name, text in files.items():
             if name not in PUBLIC_FILES:
                 raise RuntimeError('refusing to publish ' + name)
-            (self.out / name).write_text(self.sanitizer.clean(text))
+            if name.endswith('.json'):
+                # Redact string VALUES, never the serialized text: key-like patterns would otherwise eat JSON quotes.
+                text = json.dumps(self.clean_json(json.loads(text)), indent=1) + '\n'
+            else:
+                text = self.sanitizer.clean(text)
+            (self.out / name).write_text(text)
+
+    def clean_json(self, value):
+        if isinstance(value, dict):
+            return {k: self.clean_json(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self.clean_json(v) for v in value]
+        if isinstance(value, str):
+            return self.sanitizer.clean(value)
+        return value
 
     def summary(self, result):
         lines = ['# Guardian two-VM lab: **%s**' % result['overall'].upper(), '',
