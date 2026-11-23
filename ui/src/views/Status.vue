@@ -47,6 +47,13 @@
         <dd>
           {{ display(status.event_ingress && status.event_ingress.pending) }}
         </dd>
+        <dt>{{ $t("c.unackedEvents") }}</dt>
+        <dd>
+          {{ display(status.sync && status.sync.event_unacked) }}
+          <span v-if="ackState !== $t('c.unknown')">({{ $t(ackState) }})</span>
+        </dd>
+        <dt>{{ $t("c.replayedEvents") }}</dt>
+        <dd>{{ display(status.sync && status.sync.event_replayed_total) }}</dd>
         <dt>{{ $t("c.sources") }}</dt>
         <dd>
           <ul>
@@ -75,6 +82,11 @@ export default {
   mixins: [task],
   data: () => ({ loading: false, error: "", status: null }),
   computed: {
+    ackState() {
+      const sync = this.status && this.status.sync;
+      if (!sync || typeof sync.event_unacked !== "number") return "c.unknown";
+      return sync.event_unacked > 0 ? "c.ackWaiting" : "c.ackIdle";
+    },
     syncState() {
       const sync = this.status && this.status.sync;
       if (!sync) return this.$t("c.unknown");

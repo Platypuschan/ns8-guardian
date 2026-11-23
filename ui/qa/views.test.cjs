@@ -311,3 +311,17 @@ test('member configuration preserves local allowlist and never submits a TLS byp
   assert.deepEqual(Array.from(data.allowlist), ['192.0.2.1', '2001:db8::/48']);
   assert.doesNotMatch(template, /:disabled="form.role !== 'hub'"/);
 });
+
+test('status view reports unacknowledged and replayed events and flags a stuck backlog', () => {
+  const { instance: s, template } = mount('Status', async () => ({}));
+  assert(template.includes('c.unackedEvents') && template.includes('c.replayedEvents'), 'template renders both counters');
+  s.status = { sync: { event_unacked: 3, event_replayed_total: 12, event_pending: 0 } };
+  assert.equal(s.display(s.status.sync.event_unacked), '3');
+  assert.equal(s.display(s.status.sync.event_replayed_total), '12');
+  assert.equal(s.ackState, 'c.ackWaiting');
+  s.status = { sync: { event_unacked: 0, event_replayed_total: 0, event_pending: 0 } };
+  assert.equal(s.ackState, 'c.ackIdle');
+  s.status = { sync: {} };                      // older module without the counters: not reported, never "0"
+  assert.equal(s.ackState, 'c.unknown');
+  assert.equal(s.display(s.status.sync.event_unacked), 'c.unknown');
+});
