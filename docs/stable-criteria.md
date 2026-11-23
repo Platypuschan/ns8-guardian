@@ -7,9 +7,9 @@ authorizes publishing. Every item needs a link to a run, log or read-back, not a
 |---|---|---|---|
 | 1 | Validate Guardian green on the exact release commit (tests, ui, policy, images, both NS8 install jobs, publish jobs) | run URL | per RC |
 | 2 | Hosted two-node lab green on the **exact promoted digest** (all required cases incl. `engine_restart_event_replay`, admin API login, native backup/restore) | `result.json` of the run, digest equal to the release digest | per RC |
-| 3 | Lab green with both distro combinations (hub/member Debian 13 and Rocky 9, swapped) | two runs | open |
-| 4 | Optional `hub_disk_snapshot_rollback` case green once (`disk_rollback=true`) | run URL | open |
-| 5 | Upgrade path: an existing earlier RC instance updated with `cluster/update-module` keeps its state, bans and enrollment; rollback to the previous digest documented and exercised | read-back log on a disposable instance | open |
+| 3 | Lab green with both distro combinations (hub/member Debian 13 and Rocky 9, swapped) | two runs | satisfied for rc.6 candidate (runs 45047517971 and 45056728971); repeat per RC |
+| 4 | Optional `hub_disk_snapshot_rollback` case green once (`disk_rollback=true`) | run URL | satisfied (run 45047517971, rc.6 candidate); repeat per RC |
+| 5 | Upgrade path: an existing earlier RC instance updated with `cluster/update-module` keeps its state, bans and enrollment; rollback to the previous digest documented and exercised | read-back log on a disposable instance | lab-proven on rc.7 candidate (run 45147228479: update-module to the previous digest and forward again, ban/UUID/epoch preserved); real node2 rc.3 -> rc.6 upgrade done; rollback on node2 not exercised |
 | 6 | Rules replay (`tests/test-rules.sh`) green with real engine, including HTTP scanner negative controls | CI/local output | per RC |
 | 7 | No open known limit that can lose accepted security input silently: consumer ACK/replay in place; limits (finite storage, at-least-once, replay window 120 s) documented | docs/application-events.md | satisfied since rc.4 candidate |
 | 8 | Real application adapters: at least the documented SDK path demonstrated end to end against a real NS8 app, with wrong-password/correct-password/MFA controls | adapter acceptance log | open (adapter work is per application) |
