@@ -24,7 +24,7 @@ REQUIRED_CASES = [
     'management_source_unaffected',
     'owned_cleanup',
 ]
-OPTIONAL_CASES = ['hub_disk_snapshot_rollback']
+OPTIONAL_CASES = ['hub_disk_snapshot_rollback', 'module_update_rollback']
 STATUSES = ('pass', 'fail')
 
 
@@ -33,16 +33,16 @@ class ReportError(ValueError):
 
 
 class Report:
-    def __init__(self, run_id, source, module, disk_rollback=False, sanitizer=None):
+    def __init__(self, run_id, source, module, disk_rollback=False, sanitizer=None, update_rollback=False):
         from .sanitize import Sanitizer
         self.run_id, self.source, self.module = run_id, source, module
-        self.disk_rollback = disk_rollback
+        self.disk_rollback, self.update_rollback = disk_rollback, update_rollback
         self.sanitizer = sanitizer or Sanitizer()
         self.results = {}
         self.environment = {}
 
     def required(self):
-        return REQUIRED_CASES + (OPTIONAL_CASES if self.disk_rollback else [])
+        return REQUIRED_CASES + (['hub_disk_snapshot_rollback'] if self.disk_rollback else []) + (['module_update_rollback'] if self.update_rollback else [])
 
     def record(self, case, status, evidence):
         if case not in REQUIRED_CASES + OPTIONAL_CASES:

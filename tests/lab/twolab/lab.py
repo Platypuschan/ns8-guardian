@@ -23,7 +23,7 @@ from .images import ChecksumError, IMAGES, parse_checksums, verify_file
 from .net import net_create_commands, net_delete_commands
 from .resources import Ledger, Names, kvm_rule_path, new_run_id, pick_subnet
 from .sanitize import Sanitizer
-from .scenario import ALLOWLIST_CIDR, DISK_ROLLBACK_PROBE, run_scenario
+from .scenario import ALLOWLIST_CIDR, DISK_ROLLBACK_PROBE, run_scenario, run_update_rollback
 from .source import SourceError, expected_runtime_digests, source_evidence
 from .ssh import Guest, RemoteError, subprocess_runner
 from .vm import cloud_init_files, kill_owned_qemu, qemu_argv, qemu_running, seed_command, snapshot_commands
@@ -573,6 +573,15 @@ class Lab:
             def sleep(inner, seconds): inner.lab.sleep(seconds)
         run_scenario(hub=hub, member=member, host=Host(self), clock=Clock(self), report=self.report)
 
+    def stage_update_rollback(self):
+        class Clock:
+            def __init__(inner, lab): inner.lab = lab
+            def now(inner): return inner.lab.clock()
+            def sleep(inner, seconds): inner.lab.sleep(seconds)
+        hub = self.ops['hub']
+        hub.prepare_attacker()
+        run_update_rollback(hub, self.cfg.previous_digest, self.cfg.module_digest, Clock(self), self.report)
+
     # -- outputs ----------------------------------------------------------------
     def collect_diagnostics(self):
         files = {}
@@ -677,7 +686,7 @@ class Lab:
             result = self.report.finish(real_ns8=True)
             self.write_public(result, {})
             return 1
-        self.report = Report(run_id=self.run_id, source={}, module={'ref': self.cfg.module_ref}, disk_rollback=self.cfg.disk_rollback,
+        self.report = Report(run_id=self.run_id, source={}, module={'ref': self.cfg.module_ref}, disk_rollback=self.cfg.disk_rollback, update_rollback=bool(self.cfg.previous_digest),
                              sanitizer=self.sanitizer)
         self.report.environment = {'hub_distro': self.cfg.hub_distro, 'member_distro': self.cfg.member_distro, 'vm_cpus': self.cfg.vm_cpus,
                                    'vm_mem_mib': self.cfg.vm_mem_mib, 'disk_gib': self.cfg.disk_gib, 'core_ref': CORE_INSTALLER_REF,
@@ -703,6 +712,8 @@ class Lab:
             self.stage_scenario()
             if self.cfg.disk_rollback:
                 self.stage_disk_rollback()
+            if self.cfg.previous_digest:
+                self.stage_update_rollback()
         except Abort as error:
             self.report.environment.setdefault('abort', str(error))
         except Exception as error:     # unexpected: still a failed acceptance, still cleaned up

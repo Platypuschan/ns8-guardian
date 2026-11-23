@@ -78,6 +78,14 @@ passed; a case that did not execute makes the run fail. Required cases:
 
 Optional, only when `disk_rollback=true` (then required): `hub_disk_snapshot_rollback`.
 
+Optional, only when the `previous_digest` input is set (then required): `module_update_rollback`. After all other cases the hub
+module is updated with `cluster/update-module` (instances = the hub instance, never `add-module`) to the earlier digest
+(rollback) and then to the tested digest again (roll-forward). After each step the case reads back: units active, running
+`IMAGE_DIGEST` equals the requested digest, module UUID and hub epoch unchanged, a ban created before the update still a
+decision, in nftables and dropping packets, sync not stale. After the roll-forward `PREV_IMAGE_DIGEST` records the earlier
+digest and a new ban through the event path works. This is an in-place module update, not a backup restore; it does not prove
+that every earlier release is a valid downgrade target.
+
 ### Native NS8 backup/restore vs VM disk snapshot
 
 These are different things and are reported separately. `native_ns8_backup_restore` only passes with evidence that NS8's

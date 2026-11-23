@@ -100,6 +100,19 @@ class GuestOps:
         except (KeyError, TypeError, ValueError):
             raise RemoteError('%s: companion status carries no event acknowledgement counters' % self.role) from None
 
+    def update_module(self, ref):
+        """cluster/update-module of THIS instance to a digest-pinned Guardian image (never add-module)."""
+        import re as _re
+        if not _re.fullmatch(r'ghcr\.io/platypuschan/guardian@sha256:[0-9a-f]{64}', ref or ''):
+            raise ValueError('module reference must be the Guardian repository pinned by sha256 digest')
+        self.api('cluster', 'update-module', {'module_url': ref, 'instances': [g.valid_module(self.module)], 'force': False}, timeout=900)
+
+    def image_digest(self):
+        return self.state_env('IMAGE_DIGEST')
+
+    def previous_image_digest(self):
+        return self.state_env('PREV_IMAGE_DIGEST')
+
     def engine_restart(self):
         """Restart only the Engine unit: its in-memory scenario buckets are lost, the module state stays."""
         self.guest.run('systemctl restart %s.service' % g.valid_module(self.module), timeout=300)

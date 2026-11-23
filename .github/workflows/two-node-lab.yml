@@ -31,6 +31,11 @@ on:
         type: choice
         default: rocky9
         options: [rocky9, debian13]
+      previous_digest:
+        description: Optional earlier Guardian module digest (sha256:...); when set, the lab also rolls the hub module back to it with update-module and forward again
+        required: false
+        type: string
+        default: ''
       disk_rollback:
         description: Also run the optional single-VM disk snapshot rollback case (distinct from the native NS8 restore)
         required: true
@@ -104,6 +109,7 @@ jobs:
           HUB_DISTRO: ${{ inputs.hub_distro }}
           MEMBER_DISTRO: ${{ inputs.member_distro }}
           DISK_ROLLBACK: ${{ inputs.disk_rollback }}
+          PREVIOUS_DIGEST: ${{ inputs.previous_digest }}
       - name: Release any resources left by a killed launcher
         if: always()
         working-directory: tests/lab

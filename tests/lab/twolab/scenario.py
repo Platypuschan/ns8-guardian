@@ -20,10 +20,12 @@ F_POST_REBOOT = '198.51.100.28'
 G_POST_REBOOT_HUB = '198.51.100.29'
 H_ENGINE_RESTART = '198.51.100.30'   # not an attacker-namespace address: only decisions/nftables are observed
 DISK_ROLLBACK_PROBE = '198.51.100.31'   # banned/probed only by the optional disk-rollback case
+I_UPDATE_BAN = '198.51.100.32'      # banned before the update/rollback case, must survive both directions
+J_UPDATE_POST = '198.51.100.33'     # banned after the roll-forward: the event path works again
 ALLOWLISTED = '198.51.100.241'
 ALLOWLIST_CIDR = '198.51.100.240/29'
 ATTACKER_IPS = [A_MEMBER, B_HUB, C_OUTAGE_MEMBER, D_OUTAGE_HUB, E_UNBAN_DURING_OUTAGE, X_UNBAN_AFTER_BACKUP, Y_KEEP,
-                F_POST_REBOOT, G_POST_REBOOT_HUB, DISK_ROLLBACK_PROBE, ALLOWLISTED]
+                F_POST_REBOOT, G_POST_REBOOT_HUB, DISK_ROLLBACK_PROBE, I_UPDATE_BAN, J_UPDATE_POST, ALLOWLISTED]
 MIN_OUTAGE_SECONDS = 130
 
 
@@ -366,3 +368,48 @@ class Scenario:
 
 def run_scenario(hub, member, host, clock, report):
     Scenario(hub, member, host, clock, report).run()
+
+
+MODULE_REPOSITORY = 'ghcr.io/platypuschan/guardian'
+
+
+def run_update_rollback(hub, previous_digest, target_digest, clock, report):
+    """update-module to an earlier digest (rollback) and forward again; state must survive both directions."""
+    sc = Scenario(hub, None, None, clock, report)
+
+    def units_ok():
+        try:
+            ev.assert_units_active(hub.units())
+            return True
+        except ev.EvidenceError:
+            return False
+
+    def step(digest, label):
+        hub.update_module('%s@%s' % (MODULE_REPOSITORY, digest))
+        _require(wait_until(clock, units_ok, 400, 10), '%s: units not active after update-module' % label)
+        _require(hub.image_digest() == digest, '%s: running digest %s is not the requested %s' % (label, hub.image_digest(), digest))
+        _require(hub.module_uuid() == before['uuid'], '%s: module UUID changed' % label)
+        _require(hub.hybrid_state()['epoch'] == before['epoch'], '%s: hub epoch changed by a plain update' % label)
+        _require(wait_until(clock, lambda: _decision(hub, I_UPDATE_BAN) is not None, 120), '%s: ban lost across update-module' % label)
+        _require(wait_until(clock, lambda: ev.nft_has_ip(hub.nft(), I_UPDATE_BAN), 90), '%s: ban missing in nftables after update-module' % label)
+        _require(wait_until(clock, lambda: not hub.reachable(I_UPDATE_BAN), 60), '%s: banned address reachable after update-module' % label)
+        _require(wait_until(clock, lambda: not hub.sync_status().get('stale'), 240), '%s: sync stale after update-module' % label)
+
+    def check():
+        nonlocal before
+        before = {'uuid': hub.module_uuid(), 'epoch': hub.hybrid_state()['epoch']}
+        hub.ban_by_events(I_UPDATE_BAN)
+        _require(wait_until(clock, lambda: _decision(hub, I_UPDATE_BAN) is not None and ev.nft_has_ip(hub.nft(), I_UPDATE_BAN), 120), 'probe ban not enforced before the update')
+        step(previous_digest, 'rollback')
+        step(target_digest, 'roll-forward')
+        _require(hub.previous_image_digest() == previous_digest, 'PREV_IMAGE_DIGEST does not record the rolled-back digest')
+        hub.ban_by_events(J_UPDATE_POST)
+        _require(wait_until(clock, lambda: _decision(hub, J_UPDATE_POST) is not None, 120), 'event ingest broken after roll-forward: no ban for new events')
+        _require(wait_until(clock, lambda: ev.nft_has_ip(hub.nft(), J_UPDATE_POST), 60), 'new ban missing in nftables after roll-forward')
+        for ip in (I_UPDATE_BAN, J_UPDATE_POST):
+            hub.unban(ip)
+        return {'rolled_back_to': previous_digest, 'rolled_forward_to': target_digest, 'module': hub.module if hasattr(hub, 'module') else '',
+                'uuid_unchanged': True, 'epoch_unchanged': True, 'ban_survived_rollback': True, 'ban_survived_roll_forward': True,
+                'new_ban_after_roll_forward': True, 'method': 'cluster update-module with the module image digest (not a backup restore)'}
+    before = {}
+    sc.case('module_update_rollback', check)

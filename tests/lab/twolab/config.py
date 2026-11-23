@@ -26,6 +26,7 @@ class LabConfig:
     disk_gib: int
     core_ref: str
     disk_rollback: bool
+    previous_digest: str = ''
 
     @property
     def module_ref(self):
@@ -59,6 +60,9 @@ def parse_inputs(env):
     flag = env.get('DISK_ROLLBACK', 'false')
     if flag not in ('true', 'false'):
         raise ConfigError('DISK_ROLLBACK must be true or false')
+    previous = env.get('PREVIOUS_DIGEST', '')
+    if previous and (not DIGEST_RE.fullmatch(previous) or previous == env.get('MODULE_DIGEST')):
+        raise ConfigError('PREVIOUS_DIGEST must be a sha256 digest different from MODULE_DIGEST')
     return LabConfig(
         module_digest=_match(env, 'MODULE_DIGEST', DIGEST_RE),
         expected_source_sha=_match(env, 'EXPECTED_SOURCE_SHA', SHA_RE),
@@ -70,4 +74,5 @@ def parse_inputs(env):
         disk_gib=_int(env, 'DISK_GIB', 24, 20, 40),
         core_ref=_match(env, 'CORE_REF', REF_RE, 'ns8-stable'),
         disk_rollback=flag == 'true',
+        previous_digest=previous,
     )
