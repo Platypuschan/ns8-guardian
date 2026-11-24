@@ -49,11 +49,48 @@ test('the default timers work in a browser, where setInterval must be called on 
   }
 });
 
+test('a menu click switches the page at once and a router move to a page that is already shown does nothing', async () => {
+  const { navigateToPage } = await load();
+  const calls = [];
+  const pages = { members: 'Members', settings: 'Settings' };
+  const router = {
+    resolve: p => ({ route: { matched: pages[p.slice(1)] ? [1] : [], name: pages[p.slice(1)] }, location: p }),
+    replace: l => { calls.push(l); return Promise.reject(new Error('NavigationDuplicated')); },
+  };
+  const current = { name: 'Settings' };
+  assert.equal(navigateToPage(router, current, 'members'), true);   // rejected promise must not leak as an unhandled rejection
+  assert.deepEqual(calls, ['/members']);
+  assert.equal(navigateToPage(router, current, 'settings'), false); // already shown
+  assert.equal(navigateToPage(router, current, 'nonsense'), false); // unknown page: ignored
+  assert.equal(navigateToPage(router, current, ''), false);         // empty page = settings = shown
+  assert.deepEqual(calls, ['/members']);
+});
+
+test('history moves are noticed at once, not only by the poll, and stop() removes every listener', async () => {
+  const { startPageSync } = await load();
+  const listeners = {};
+  const win = {
+    location: { href: 'https://h/#/apps/guardian1?page=settings' },
+    addEventListener: (e, f) => { listeners[e] = f; },
+    removeEventListener: (e, f) => { if (listeners[e] === f) delete listeners[e]; },
+  };
+  const seen = [];
+  const stop = startPageSync(win, page => seen.push(page), 500, { setInterval: () => 1, clearInterval: () => {} });
+  assert(listeners.popstate && listeners.hashchange, 'back/forward and manual hash edits are listened for');
+  win.location.href = 'https://h/#/apps/guardian1?page=bans';
+  listeners.popstate();
+  assert.deepEqual(seen, ['bans']);
+  stop();
+  assert.deepEqual(Object.keys(listeners), []);
+});
+
 test('App.vue starts the sync, switches the route for known pages only, and stops it on destroy', () => {
   const app = fs.readFileSync(path.join(root, 'src/App.vue'), 'utf8');
   assert(app.includes('startPageSync('), 'App.vue must watch the parent URL');
   assert(app.includes('appNavigation'), 'the side menu is told about the page change');
   assert(app.includes('beforeDestroy'), 'the watcher is stopped');
   const menu = fs.readFileSync(path.join(root, 'src/components/AppSideMenuContent.vue'), 'utf8');
+  assert(!/@click="goToAppPage\(/.test(menu), 'menu entries must switch the page themselves, not only change the parent URL');
+  assert(menu.includes('navigateToPage('), 'the menu click uses the shared page switch');
   assert(!menu.includes('getPage()'), 'the menu must use the same default page as the router (settings), not the library default (status)');
 });

@@ -23,7 +23,7 @@ import {
   UtilService,
 } from "@nethserver/ns8-ui-lib";
 import to from "await-to-js";
-import { startPageSync } from "./pageSync.mjs";
+import { navigateToPage, startPageSync } from "./pageSync.mjs";
 
 export default {
   name: "App",
@@ -56,13 +56,7 @@ export default {
     // The shell only changes the parent URL when a menu entry is clicked: follow it.
     this.stopPageSync = startPageSync(window.parent, (page) => {
       this.$root.$emit("appNavigation", this.instanceName, page || "settings");
-      const target = this.$router.resolve("/" + (page || "settings"));
-      if (
-        target.route.matched.length &&
-        target.route.name !== this.$route.name
-      ) {
-        this.$router.replace(target.location).catch(() => {});
-      }
+      navigateToPage(this.$router, this.$route, page);
     });
 
     // configure global shortcuts

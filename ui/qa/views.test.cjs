@@ -113,7 +113,7 @@ test('event sources are reachable through router and the shared desktop/mobile m
   const menu = fs.readFileSync(path.join(root, 'src/components/AppSideMenuContent.vue'), 'utf8');
   assert.match(router, /path: "\/event-sources"/);
   assert.match(router, /component: EventSources/);
-  assert.match(menu, /goToAppPage\(instanceName, 'event-sources'\)/);
+  assert.match(menu, /openPage\('event-sources'\)/);
   for (const locale of ['en', 'de']) {
     const messages = JSON.parse(fs.readFileSync(path.join(root, 'public/i18n', locale, 'translation.json')));
     assert.ok(messages.eventSources.title);
