@@ -99,6 +99,7 @@ This is **not** a WAF: no request body inspection and no inline blocking.
 | HTTP scanning, exploit paths | stock HTTP rules on the Traefik access log (see above) | rule defaults (verified in the hosted lab: path scan) |
 | NS8 cluster-admin | Traefik access log: `POST /cluster-admin/api/login` → 401 on router `cluster-admin-https@file` | 5 failures (~10 min window) |
 | Gitea web | Traefik access log: `POST /user/login` → 200 (a successful login returns 303) | 5 failures |
+| Gitea second factor | Traefik access log: `POST /user/two_factor` or `/user/two_factor/scratch` → 200 (success returns 303) | 5 failures |
 | Gitea git / API | Traefik access log: bursts of 401 on `/api/…` or `*.git` | > 30 in a burst |
 | Organizr | Traefik access log: `POST /api/v2/login` → 401 | 5 failures |
 | Samba (AD/SMB/LDAP) | Samba JSON authentication audit, failed statuses with a remote IP | 5 failures |

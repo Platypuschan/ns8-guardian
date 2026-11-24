@@ -295,3 +295,19 @@ Oct 12 22:36:06 ns8node traefik[4242]: 198.51.100.71 - - [12/Oct/2026:22:36:06 +
 Oct 12 22:36:07 ns8node traefik[4242]: 198.51.100.71 - - [12/Oct/2026:22:36:07 +0000] "GET /explore HTTP/1.1" 200 512 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36" 3 "gitea1-https@file" "http://127.0.0.1:3999" 4ms
 Oct 12 22:36:10 ns8node traefik[4242]: 198.51.100.72 - - [12/Oct/2026:22:36:10 +0000] "GET / HTTP/1.1" 200 512 "-" "Mozilla\" 200 12 \"-\" \"nikto\" 3 \"admin-router@file\" \"http://x\" 1ms" 3 "gitea1-https@file" "http://127.0.0.1:3999" 4ms
 Oct 12 22:36:11 ns8node traefik[4242]: 198.51.100.72 - - [12/Oct/2026:22:36:11 +0000] "GET / HTTP/1.1" 200 512 "-" "Mozilla\" 200 12 \"-\" \"nikto\" 3 \"admin-router@file\" \"http://x\" 1ms" 3 "gitea1-https@file" "http://127.0.0.1:3999" 4ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.88 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.88 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.88 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.88 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.88 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.89 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor/scratch HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.89 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor/scratch HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.89 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor/scratch HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.89 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor/scratch HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.89 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor/scratch HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 200 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 303 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 303 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
+Oct 12 22:35:17 ns8node traefik[4242]: 198.51.100.90 - - [12/Oct/2026:22:35:17 +0000] "POST /user/two_factor HTTP/1.1" 303 14266 "-" "-" 3 "gitea1-https@file" "http://127.0.0.1:3999" 15ms
