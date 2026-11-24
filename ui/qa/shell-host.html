@@ -1,0 +1,11 @@
+<!doctype html><html><body style="margin:0"><div id="bar" style="height:30px">host</div>
+<iframe id="app-frame" src="apps/guardian1/index.html" style="width:100%;height:700px;border:0"></iframe>
+<script>
+function bus(){const h={};return {$on(e,f){(h[e]=h[e]||[]).push(f)},$once(e,f){const w=(...a)=>{this.$off(e,w);f(...a)};w.f=f;this.$on(e,w)},$off(e,f){if(!f){delete h[e];return}h[e]=(h[e]||[]).filter(x=>x!==f&&x.f!==f)},$emit(e,...a){(h[e]||[]).slice().forEach(f=>f(...a))}}}
+window.__tasks=[];
+window.core={$root:bus(),$store:{state:{}},
+  get $route(){return {fullPath:location.hash.slice(1)||'/',path:(location.hash.slice(1).split('?')[0])}},
+  $router:{push(p){location.hash='#'+p},replace(p){location.hash='#'+p}},
+  $t:k=>k};
+if(!location.hash)location.hash='#/apps/guardian1?page=settings';
+</script></body></html>

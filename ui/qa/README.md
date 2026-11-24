@@ -55,3 +55,11 @@ Sync state precedence is error, capacity overload, stale, pending, idle, unknown
 The Node suite first reproduced failures in TLS-bypass submission, member ban gating, membership credential decoding/output, missing optional status handling, missing source provisioning/navigation and late-secret lifecycle handling before the corresponding implementation changes. It also checks role locking, blank-token omission, locale key parity and explicit button types. The browser suite checks real rendered inputs/buttons, local unban, error recovery, optional statuses, opaque/escaped tokens, navigation cleanup, source create/list/remove and German guide rendering. Neither suite validates the backend transport, HTTP ingress payload schema, real application hooks, distributed convergence or firewall enforcement.
 
 Protocol presentation regressions added with separate Node RED/GREEN cycles cover integer source state (including malformed/missing states), conditional localized pending recovery, and each sync overload signal across unknown/idle/stale/pending inputs. The browser fixture additionally exercises all three overload signals and pending/active/unknown source rows in both EN and DE, no metadata token disclosure, pending removal/recreation and one-time-token cleanup. This remains isolated fixture verification, not a live backend test.
+
+## NS8 shell host (menu navigation, real production build)
+
+`qa/shell-host.html` imitates the NS8 shell: the app runs in an iframe, `window.parent.core` is a stub, and menu clicks only change the PARENT URL
+(`#/apps/<id>?page=<page>`), exactly like the real shell. It is the only check that exercises `src/App.vue` and the side menu in a browser; the
+isolated fixture above replaces both. Build, then serve a directory that contains `cluster-admin/index.html` (this file) and
+`cluster-admin/apps/guardian1` (symlink to `dist/`), open `/cluster-admin/index.html#/apps/guardian1?page=settings`, and click the menu entries inside the
+iframe: each must load its page, highlight itself, and survive history back/forward. Hard-reload the iframe after rebuilding (the browser caches the old bundle).

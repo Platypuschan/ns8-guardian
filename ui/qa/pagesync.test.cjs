@@ -32,6 +32,23 @@ test('a URL change is reported once, an unchanged URL never, and stop() ends it'
   stop(); assert.deepEqual(seen, ['members', 'settings', 'cleared 7']);
 });
 
+test('the default timers work in a browser, where setInterval must be called on window (found on node2: "Illegal invocation")', async () => {
+  const real = { setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval };
+  const strict = name => function (...args) {
+    if (this !== globalThis && this !== undefined) throw new TypeError('Illegal invocation');
+    return real[name].apply(globalThis, args);
+  };
+  globalThis.setInterval = strict('setInterval');
+  globalThis.clearInterval = strict('clearInterval');
+  try {
+    const { startPageSync } = await import(pathToFileURL(path.join(root, 'src/pageSync.mjs')).href + '?strict=' + Date.now());
+    const stop = startPageSync({ location: { href: 'https://h/#/apps/guardian1?page=settings' } }, () => {}, 10000);
+    stop();
+  } finally {
+    Object.assign(globalThis, real);
+  }
+});
+
 test('App.vue starts the sync, switches the route for known pages only, and stops it on destroy', () => {
   const app = fs.readFileSync(path.join(root, 'src/App.vue'), 'utf8');
   assert(app.includes('startPageSync('), 'App.vue must watch the parent URL');

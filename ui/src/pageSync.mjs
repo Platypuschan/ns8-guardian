@@ -9,7 +9,11 @@ export function pageFromUrl(url) {
 }
 
 // Calls onPage(page) whenever the parent URL changes. Returns a function that stops the watcher.
-export function startPageSync(win, onPage, intervalMs = 500, timers = { setInterval, clearInterval }) {
+export function startPageSync(win, onPage, intervalMs = 500, timers = {
+    // not bare references: a browser's setInterval throws "Illegal invocation" when called as a method of another object
+    setInterval: (...args) => setInterval(...args),
+    clearInterval: (id) => clearInterval(id),
+  }) {
   let last = win.location.href;
   const id = timers.setInterval(() => {
     const url = win.location.href;
