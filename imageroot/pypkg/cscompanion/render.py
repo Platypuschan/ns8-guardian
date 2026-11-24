@@ -39,7 +39,22 @@ def gateway_port():
     return int(values[2])
 
 
-def config_local(cfg):
+CAPI_CREDENTIALS = 'online_api_credentials.yaml'
+
+
+def community_client(cfg, state=None, registering=False):
+    """Central API client section, only when the administrator opted in and this node is registered."""
+    if not cfg.get('community_blocklist'):
+        return None
+    ready = registering or (Path(state if state is not None else state_dir()) / 'crowdsec_config' / CAPI_CREDENTIALS).is_file()
+    if not ready:
+        return None
+    return {'credentials_path': '/etc/crowdsec/' + CAPI_CREDENTIALS,
+            'sharing': bool(cfg.get('community_sharing')),
+            'pull': {'community': True, 'blocklists': False}}
+
+
+def config_local(cfg, state=None, registering=False):
     lapi, metrics = ports()
     data = {
         "prometheus": {"enabled": True, "level": "full", "listen_addr": "127.0.0.1", "listen_port": metrics},
@@ -57,6 +72,8 @@ def config_local(cfg):
         # log_level error: the access log would record every bouncer poll.
         data["api"] = {"server": {"listen_uri": "127.0.0.1:%d" % lapi, "use_forwarded_for_headers": True,
                                   "trusted_proxies": ["127.0.0.1/32", "::1/128"], "log_level": "error"}}
+        if registering:        # cscli needs the client section once, to register; at run time offline-start.sh adds it
+            data["api"]["server"]["online_client"] = community_client(cfg, state, True)
     return yaml_doc(data)
 
 
@@ -151,6 +168,24 @@ def crowdsec_env(cfg, module):
     return "".join("%s=%s\n" % kv for kv in sorted(env.items()))
 
 
+GENERATED_RULES = {'parsers/s02-enrich/ns8-router-apps.yaml'}
+
+
+def prune_retired_rules(conf):
+    """Remove module-owned ns8-* rule files that this version no longer ships (changed_write only adds/updates)."""
+    shipped = {str(p.relative_to(STATIC_RULES)) for p in STATIC_RULES.rglob('*.yaml')} | GENERATED_RULES
+    removed = False
+    for sub in ('parsers/s00-raw', 'parsers/s01-parse', 'parsers/s02-enrich', 'scenarios', 'postoverflows/s01-whitelist'):
+        directory = Path(conf) / sub
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob('ns8-*.yaml')):
+            if path.is_file() and not path.is_symlink() and str(path.relative_to(conf)) not in shipped:
+                path.unlink()
+                removed = True
+    return removed
+
+
 def render_all(cfg, module, state, root="/"):
     """Write every generated file; return True if CrowdSec must reload."""
     state = Path(state)
@@ -160,10 +195,18 @@ def render_all(cfg, module, state, root="/"):
     reload = False
     reload |= changed_write(conf / "acquis.yaml", acquisition(found, root), 0o644)
     reload |= changed_write(conf / "parsers/s02-enrich/ns8-router-apps.yaml", routers_parser(found), 0o644)
+    reload |= prune_retired_rules(conf)
     for path in sorted(STATIC_RULES.rglob("*.yaml")):
         target = conf / path.relative_to(STATIC_RULES)
         reload |= changed_write(target, path.read_text(), 0o644)
     restart = changed_write(conf / "config.yaml.local", config_local(cfg), 0o644)
+    client = community_client(cfg, state)
+    fragment = conf / "community.yaml"
+    if client:
+        restart |= changed_write(fragment, yaml_doc(client), 0o600)
+    elif fragment.exists():
+        fragment.unlink()
+        restart = True
     restart |= changed_write(conf/'local_api_credentials.yaml.local',yaml_doc({'url':'http://127.0.0.1:%d/'%ports()[0]}))
     restart |= changed_write(conf / "profiles.yaml", profiles(cfg), 0o644)
     restart |= changed_write(state / "crowdsec.env", crowdsec_env(cfg, module))

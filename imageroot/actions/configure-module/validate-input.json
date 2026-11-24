@@ -43,6 +43,12 @@
     },
     "samba_audit": {
       "type": "boolean"
+    },
+    "community_blocklist": {
+      "type": "boolean"
+    },
+    "community_sharing": {
+      "type": "boolean"
     }
   }
 }

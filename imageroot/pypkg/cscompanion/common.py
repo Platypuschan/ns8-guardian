@@ -18,6 +18,10 @@ DEFAULTS = {
     "ban_duration": "4h",
     "allowlist": [],
     "samba_audit": True,
+    # Opt-in: pull the CrowdSec community blocklist from the Central API (needs internet; off = fully offline).
+    "community_blocklist": False,
+    # Opt-in on top: also send signals about local attacks to CrowdSec (a larger list is delivered to sharing nodes).
+    "community_sharing": False,
     "insecure_skip_verify": False,
 }
 DURATION = re.compile(r"^[1-9][0-9]{0,4}(m|h)$")

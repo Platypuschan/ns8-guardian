@@ -25,6 +25,14 @@
         </dd>
         <dt>{{ $t("c.activeBans") }}</dt>
         <dd>{{ display(status.active_bans) }}</dd>
+        <template v-if="status.community && status.community.enabled">
+          <dt>{{ $t("c.activeCommunity") }}</dt>
+          <dd>{{ display(status.community.entries) }}</dd>
+          <template v-if="status.community.error">
+            <dt>{{ $t("c.communityError") }}</dt>
+            <dd>{{ status.community.error }}</dd>
+          </template>
+        </template>
         <template v-if="status.role === 'hub'">
           <dt>{{ $t("c.membersCount") }}</dt>
           <dd>{{ display(status.members) }}</dd>

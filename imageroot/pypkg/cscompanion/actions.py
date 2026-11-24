@@ -68,6 +68,8 @@ def configure_module(request):
     except ValueError:
         fail("allowlist", "invalid_address")
     cfg["samba_audit"] = bool(request.get("samba_audit", cfg["samba_audit"]))
+    cfg["community_blocklist"] = bool(request.get("community_blocklist", cfg["community_blocklist"]))
+    cfg["community_sharing"] = bool(request.get("community_sharing", cfg["community_sharing"])) and cfg["community_blocklist"]
     if request.get('insecure_skip_verify',False):
         fail('insecure_skip_verify','insecure_sync_not_supported')
     cfg['insecure_skip_verify']=False
@@ -112,7 +114,7 @@ def configure_module(request):
 def get_configuration(_request):
     cfg = load_config()
     out = {k: cfg[k] for k in ("role", "hub_host", "lets_encrypt", "hub_url", "ban_duration",
-                               "allowlist", "samba_audit", "insecure_skip_verify")}
+                               "allowlist", "samba_audit", "insecure_skip_verify", "community_blocklist", "community_sharing")}
     out["member_name"] = read_secret("sync_peer") if cfg["role"] == "member" else ""
     json.dump(out, sys.stdout)
 
@@ -256,6 +258,10 @@ def get_status(_request):
     if status["lapi"] == "ok":
         alerts = lifecycle.cscli_json("decisions", "list", "--limit", "0")
         status["active_bans"] = sum(len(a.get("decisions") or []) for a in alerts)
+        info = lifecycle.community_state()
+        status["community"] = {"enabled": bool(cfg["community_blocklist"]), "sharing": bool(cfg["community_sharing"]),
+                               "error": info.get("error", ""),
+                               "entries": lifecycle.community_entries() if cfg["community_blocklist"] else 0}
         if cfg['role']=='hub':
             status['members']=sum(not p['revoked'] and p['name']!=read_secret('sync_peer') for p in Store(state_dir()).list_peers())
     json.dump(status, sys.stdout)

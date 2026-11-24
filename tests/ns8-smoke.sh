@@ -153,6 +153,36 @@ done
 sleep 20
 if decisions | contains 192.0.2.9; then fail "allowlisted address was banned"; fi
 
+step "community blocklist is an opt-in that can be removed again"
+community() { api-cli run "module/$module/get-companion-status" | json "'%s %s %s' % (d['community']['enabled'], d['community']['entries'], d['community']['error'] or '-')"; }
+[[ "$(community | cut -d' ' -f1)" == False ]] || fail "community blocklist is not off by default"
+api-cli run "module/$module/configure-module" --data '{"community_blocklist":true}'
+registered=no
+for _ in $(seq 1 60); do
+    read -r _ entries error <<<"$(community)"
+    if [[ "$entries" =~ ^[0-9]+$ && "$entries" -gt 1000 ]]; then registered=yes; break; fi
+    [[ "$error" != - ]] && break
+    sleep 5
+done
+if [[ "$registered" == yes ]]; then
+    echo "community blocklist entries: $entries"
+    api-cli run "module/$module/list-decisions" | contains '"origin": "CAPI"' && fail "community entries are listed as local bans"
+    systemctl is-active --quiet "$module.service" || fail "engine is down with the community blocklist enabled"
+else
+    # The Central API is an external service: a registration failure must be reported, not break the module.
+    echo "WARNING: Central API registration did not complete: $error" >&2
+    systemctl is-active --quiet "$module.service" || fail "engine is down after a failed community registration"
+fi
+api-cli run "module/$module/configure-module" --data '{"community_blocklist":false}'
+for _ in $(seq 1 30); do
+    read -r _ entries _ <<<"$(community)"
+    [[ "$entries" == 0 ]] && break
+    sleep 2
+done
+[[ "$entries" == 0 ]] || fail "community entries remain after switching the option off ($entries)"
+[[ ! -e "/var/lib/nethserver/$module/state/crowdsec_config/online_api_credentials.yaml" ]] || fail "credentials remain after switching the option off"
+systemctl is-active --quiet "$module.service" || fail "engine is down after disabling the community blocklist"
+
 step "restart keeps working without changes"
 systemctl restart "$module.service"
 wait_for 120 "LAPI after restart" runagent -m "$module" podman exec "$module" cscli lapi status

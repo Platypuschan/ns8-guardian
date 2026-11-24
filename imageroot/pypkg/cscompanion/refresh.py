@@ -20,6 +20,10 @@ def main():
         lifecycle.run(["podman", "kill", "--signal", "HUP", module], check=False)
     if result["bouncer"]:
         lifecycle.systemctl("restart", module + "-bouncer.service")
+    if lifecycle.ensure_community(cfg):
+        lifecycle.systemctl("restart", module + ".service")
+        lifecycle.wait_lapi()
+        lifecycle.wait_agent()
     lifecycle.apply_samba_audit(cfg, result["found"])
     if result["reload"] or result["restart"]:
         print("Log sources changed: %s" % {k: [i["module"] for i in v] for k, v in result["found"].items()}, file=sys.stderr)

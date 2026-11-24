@@ -91,6 +91,18 @@
           <template slot="text-right">{{ $t("c.enabled") }}</template>
         </cv-toggle>
         <p class="hint">{{ $t("c.sambaAuditHelp") }}</p>
+        <cv-toggle v-model="form.community_blocklist" :label="$t('c.communityBlocklist')">
+          <template slot="text-left">{{ $t("c.disabled") }}</template>
+          <template slot="text-right">{{ $t("c.enabled") }}</template>
+        </cv-toggle>
+        <p class="hint">{{ $t("c.communityBlocklistHelp") }}</p>
+        <template v-if="form.community_blocklist">
+          <cv-toggle v-model="form.community_sharing" :label="$t('c.communitySharing')">
+            <template slot="text-left">{{ $t("c.disabled") }}</template>
+            <template slot="text-right">{{ $t("c.enabled") }}</template>
+          </cv-toggle>
+          <p class="hint">{{ $t("c.communitySharingHelp") }}</p>
+        </template>
       </section>
       <cv-button type="button" :disabled="busy || !form.role" @click="save">{{
         $t("c.save")
@@ -119,6 +131,8 @@ export default {
       token: "",
       ban_duration: "4h",
       samba_audit: true,
+      community_blocklist: false,
+      community_sharing: false,
     },
   }),
   computed: {
@@ -163,6 +177,8 @@ export default {
         role: this.form.role,
         ban_duration: this.form.ban_duration.trim(),
         samba_audit: this.form.samba_audit,
+        community_blocklist: this.form.community_blocklist,
+        community_sharing: this.form.community_blocklist && this.form.community_sharing,
         allowlist: this.allowlist
           .split(/[\s,]+/)
           .map((v) => v.trim())

@@ -172,6 +172,11 @@ def apply(cfg, restart=False):
         run(["podman", "kill", "--signal", "HUP", module], check=False)
     wait_lapi()
     wait_agent()
+    if ensure_community(cfg):
+        systemctl("restart", module + ".service")
+        wait_lapi()
+        wait_agent()
+        restart = True
     sync_allowlist(cfg)
     systemctl("enable", module + "-bouncer.service")
     if restart or result["restart"] or result["bouncer"] or systemctl("is-active", "--quiet", module + "-bouncer.service", check=False).returncode:
@@ -182,6 +187,65 @@ def apply(cfg, restart=False):
         systemctl('restart',module+'-gateway.service',module+'-sync.service')
     apply_samba_audit(cfg, result["found"])
     return result
+
+
+COMMUNITY_RETRY_SECONDS = 3600
+
+
+def community_state():
+    try:
+        return json.loads((state_dir() / "community.json").read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _save_community(data):
+    atomic_write(state_dir() / "community.json", json.dumps(data, sort_keys=True) + "\n", 0o600)
+
+
+def ensure_community(cfg):
+    """Opt-in CrowdSec community blocklist. Returns True when the engine configuration changed and needs a restart.
+
+    The upstream entry point stays offline (DISABLE_ONLINE_API); registration with the Central API happens here, once,
+    and a failure (no internet, rate limit) is recorded instead of blocking the module. Switching the option off removes
+    the imported entries AND the credentials: the Central API only sends changes to a known machine, so a later
+    opt-in must register afresh to receive the full list again."""
+    creds = state_dir() / "crowdsec_config" / render.CAPI_CREDENTIALS
+    info = community_state()
+    if not cfg.get("community_blocklist"):
+        if creds.is_file():
+            # Imported entries would otherwise stay active until they expire (days).
+            for origin in ("CAPI", "lists"):
+                cscli("decisions", "delete", "--origin", origin, check=False, timeout=180)
+            creds.unlink()
+            _save_community({})
+            return True
+        return False
+    if creds.is_file() and creds.stat().st_size:
+        if info.get("error"):
+            _save_community({})
+        return False
+    if time.time() - info.get("failed_at", 0) < COMMUNITY_RETRY_SECONDS:
+        return False
+    module = module_id()
+    conf = state_dir() / "crowdsec_config" / "config.yaml.local"
+    atomic_write(conf, render.config_local(cfg, registering=True), 0o644)
+    result = cscli("capi", "register", "-f", "/etc/crowdsec/" + render.CAPI_CREDENTIALS, check=False, timeout=90)
+    if result.returncode == 0 and creds.is_file() and creds.stat().st_size:
+        os.chmod(creds, 0o600)
+        _save_community({})
+        render.render_all(cfg, module, state_dir())
+        return True
+    creds.unlink(missing_ok=True)
+    _save_community({"error": ((result.stderr or result.stdout) or "registration failed").strip()[-300:], "failed_at": time.time()})
+    render.render_all(cfg, module, state_dir())
+    return False
+
+
+def community_entries():
+    """Number of active entries imported from the Central API (0 when disabled)."""
+    result = cscli("decisions", "list", "--all", "--origin", "CAPI", "--limit", "0", "-o", "raw", check=False, timeout=120)
+    return max(0, len(result.stdout.splitlines()) - 1) if result.returncode == 0 else None
 
 
 ALLOWLIST = "ns8-companion"

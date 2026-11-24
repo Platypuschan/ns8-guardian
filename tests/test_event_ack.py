@@ -1,6 +1,7 @@
 """Consumer ACK, engine-generation requeue and bounded bucket-window replay (real SQLite, controllable probes)."""
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -251,3 +252,22 @@ class StatusCounters(unittest.TestCase):
     def test_sync_status_publishes_the_acked_counter(self):
         text = (Path(__file__).resolve().parents[1] / 'imageroot/pypkg/cscompanion/sync.py').read_text()
         self.assertIn("status['event_acked']", text)
+
+
+class RetiredRules(unittest.TestCase):
+    def test_render_removes_retired_module_rules_but_keeps_shipped_generated_and_foreign_files(self):
+        from cscompanion import render
+        with tempfile.TemporaryDirectory() as tmp:
+            conf = Path(tmp)
+            for rel in ('scenarios/ns8-http-probing.yaml', 'scenarios/ns8-http-sensitive-probe.yaml', 'scenarios/local-custom.yaml',
+                        'parsers/s02-enrich/ns8-router-apps.yaml', 'parsers/s01-parse/ns8-gone.yaml'):
+                (conf / rel).parent.mkdir(parents=True, exist_ok=True)
+                (conf / rel).write_text('x')
+            os.symlink('/etc/crowdsec/hub/x.yaml', conf / 'scenarios/ns8-hublink.yaml')
+            self.assertTrue(render.prune_retired_rules(conf))
+            self.assertFalse((conf / 'scenarios/ns8-http-probing.yaml').exists())
+            self.assertFalse((conf / 'parsers/s01-parse/ns8-gone.yaml').exists())
+            for keep in ('scenarios/ns8-http-sensitive-probe.yaml', 'scenarios/local-custom.yaml', 'parsers/s02-enrich/ns8-router-apps.yaml'):
+                self.assertTrue((conf / keep).exists(), keep)
+            self.assertTrue((conf / 'scenarios/ns8-hublink.yaml').is_symlink())
+            self.assertFalse(render.prune_retired_rules(conf))

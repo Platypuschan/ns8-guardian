@@ -40,4 +40,31 @@ sync_image_rules() {
     done
 }
 sync_image_rules
+
+# Opt-in community blocklist. The module renders /etc/crowdsec/community.yaml (the Central API client section) only when
+# the administrator enabled it and this node is registered. crowdsec exits at start when a configured Central API cannot be
+# reached (no internet after a reboot, API outage), which would take local protection down with it: the client is therefore
+# merged into the configuration only when the API answers now, and the engine otherwise starts offline (next start retries).
+capi_reachable() {
+    case "${GUARDIAN_CAPI_PROBE:-}" in ok) return 0 ;; fail) return 1 ;; esac
+    timeout 8 bash -c '</dev/tcp/api.crowdsec.net/443' 2>/dev/null
+}
+community_client() {
+    local fragment=/etc/crowdsec/community.yaml config=/etc/crowdsec/config.yaml
+    export DISABLE_ONLINE_API=true      # upstream removes any online client from config.yaml and never registers by itself
+    [ -s "$fragment" ] && [ -f "$config" ] || return 0
+    if capi_reachable; then
+        FRAGMENT="$fragment" yq e -i '.api.server.online_client = load(strenv(FRAGMENT))' "$config"
+        export DISABLE_ONLINE_API=false
+        echo "Community blocklist: Central API reachable, client enabled"
+    else
+        echo "WARNING: community blocklist enabled but the Central API is unreachable; starting offline" >&2
+    fi
+}
+community_client
+if [ -n "${GUARDIAN_START_DRYRUN:-}" ]; then      # test hook: show the decision, do not start
+    echo "DISABLE_ONLINE_API=$DISABLE_ONLINE_API"
+    yq e '.api.server.online_client' /etc/crowdsec/config.yaml
+    exit 0
+fi
 source <(sed '/^prepare_hub$/d' /docker_start.sh)

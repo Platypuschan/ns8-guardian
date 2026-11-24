@@ -437,7 +437,7 @@ class ReleaseNotesLimits(unittest.TestCase):
     def test_later_rcs_describe_ack_replay_and_what_remains_open(self):
         body = load().release_notes('1', SHA, DIGEST, '0.2.0-rc.7')
         self.assertNotIn('remain incomplete', body)
-        for text in ('engine-generation', 'at-least-once', 'not exactly-once', 'two-node', 'no WAF/AppSec', 'community reputation', 'update-module', 'add-module', 'ACK', 'WAF'):
+        for text in ('engine-generation', 'at-least-once', 'not exactly-once', 'two-node', 'no WAF/AppSec', 'community blocklist', 'update-module', 'add-module', 'ACK', 'WAF'):
             self.assertIn(text, body)
         self.assertNotIn('Two-node NS8, host reboot, backup/restore and application-adapter acceptance remain', body)
         self.assertIn(DIGEST, body)

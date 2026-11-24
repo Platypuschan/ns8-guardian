@@ -141,7 +141,7 @@ backup/restore, engine restart replay, private-CA enrollment) for the exact dige
 Detection: stock CrowdSec Hub rules (SSH, HTTP scanning, ~30 CVE exploit paths) are bundled in the
 engine image at build time and fed by a trusted-client-IP Traefik access-log parser; a rule update
 requires a new image digest. Remaining limits: application adapters are accepted per application;
-no WAF/AppSec inline blocking, no CrowdSec community reputation (offline by design), no
+no WAF/AppSec inline blocking, the CrowdSec community blocklist is an opt-in setting (off: fully offline), no
 user-agent rules (NS8 Traefik logs no headers), no multi-day soak.
 This prerelease is not production approval.'''
 

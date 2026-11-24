@@ -77,8 +77,21 @@ start script makes an *existing* configuration volume follow the image (upstream
 `ns8-*` rules and generated files are untouched. `runtime/hub-items.lock` records the shipped item versions; the weekly
 `rules-watch` workflow rebuilds with the current Hub, shows the diff and replays all rules, publishing nothing.
 
-This is **not** a WAF: no request body inspection and no inline blocking, and no CrowdSec community IP
-reputation (that requires the CrowdSec cloud; this module is offline by design).
+**Community blocklist (opt-in, off by default).** The module is offline by design. In *Settings* an administrator can
+enable the CrowdSec community blocklist per node: the node then registers once with the CrowdSec Central API
+(`api.crowdsec.net`) and receives a list of about 15,000 addresses reported by other CrowdSec users, which the firewall
+bouncer blocks like local bans (origin `CAPI`). Rules of the design:
+
+- Registration and the list download need internet. If the API is unreachable at engine start, the engine starts offline
+  (local protection is never taken down by it) and the next start retries; a failed registration is shown in the status
+  and retried hourly.
+- Imported entries are not local bans: they are not replicated to other Guardian nodes (enable it on every node that
+  should use it), not listed as local bans, and the allowlist applies.
+- A second switch *share signals* additionally sends attacker address, time and rule of local detections to CrowdSec
+  (no log contents); CrowdSec delivers a larger list to sharing nodes. Console enrolment and third-party blocklists are not used.
+- Switching it off removes the imported entries and the credentials immediately; a later opt-in registers afresh.
+
+This is **not** a WAF: no request body inspection and no inline blocking.
 
 | Source | Signal | Ban after |
 | --- | --- | --- |
