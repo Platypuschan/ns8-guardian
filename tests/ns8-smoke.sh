@@ -156,7 +156,7 @@ if decisions | contains 192.0.2.9; then fail "allowlisted address was banned"; f
 step "community blocklist is an opt-in that can be removed again"
 community() { api-cli run "module/$module/get-companion-status" | json "'%s %s %s' % (d['community']['enabled'], d['community']['entries'], d['community']['error'] or '-')"; }
 [[ "$(community | cut -d' ' -f1)" == False ]] || fail "community blocklist is not off by default"
-api-cli run "module/$module/configure-module" --data '{"community_blocklist":true}'
+api-cli run "module/$module/configure-module" --data "{\"role\":\"hub\",\"hub_host\":\"$hub_host\",\"lets_encrypt\":false,\"community_blocklist\":true}"
 registered=no
 for _ in $(seq 1 60); do
     read -r _ entries error <<<"$(community)"
@@ -173,7 +173,7 @@ else
     echo "WARNING: Central API registration did not complete: $error" >&2
     systemctl is-active --quiet "$module.service" || fail "engine is down after a failed community registration"
 fi
-api-cli run "module/$module/configure-module" --data '{"community_blocklist":false}'
+api-cli run "module/$module/configure-module" --data "{\"role\":\"hub\",\"hub_host\":\"$hub_host\",\"lets_encrypt\":false,\"community_blocklist\":false}"
 for _ in $(seq 1 30); do
     read -r _ entries _ <<<"$(community)"
     [[ "$entries" == 0 ]] && break
