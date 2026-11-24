@@ -68,6 +68,7 @@ import UserMultiple20 from "@carbon/icons-vue/es/user--multiple/20";
 import Locked20 from "@carbon/icons-vue/es/locked/20";
 import { mapState } from "vuex";
 import { QueryParamService, UtilService } from "@nethserver/ns8-ui-lib";
+import { pageFromUrl } from "../pageSync.mjs";
 
 export default {
   name: "AppSideMenuContent",
@@ -97,7 +98,8 @@ export default {
   },
   methods: {
     isLinkActive(page) {
-      return this.getPage() === page;
+      // same default page as the router: settings (the library default would be status)
+      return (pageFromUrl(window.parent.location.href) || "settings") === page;
     },
     onAppNavigation() {
       // highlight current page in side menu
