@@ -65,6 +65,8 @@ passed; a case that did not execute makes the run fail. Required cases:
 | `absolute_ttl` | after a >= 130 s outage the importing node's expiry equals the origin's absolute expiry within 20 s (a TTL restarted at import would differ by the outage length), both directions |
 | `no_echo` | no echo: hub claim origins are exactly the originator; imports are not re-exported; exactly one imported decision per node |
 | `allowlist_negative_control` | allowlisted addresses are never banned or dropped on either node |
+| `ssh_bruteforce_detection` | 12 failed SSH logins (invalid users) from a synthetic source against the member's real sshd: stock `crowdsecurity/ssh-*` rule bans it, nftables drops it (not the Guardian event path) |
+| `http_scan_detection` | a real path scan (36 distinct missing paths, `/.env`, `/.git/config`) through the hub's Traefik: the Traefik access-log pipeline (`crowdsecurity/http-*` or `ns8/ns8-http-*`) bans it and nftables drops it |
 | `engine_restart_event_replay` | consumer ACK and bucket rebuild: 3 failure events reach the hub engine (bucket capacity 4, no ban) and are acknowledged; the engine unit restarts (in-memory bucket lost); 4 more events must still ban because the acknowledged events were replayed (4 alone cannot overflow the bucket) |
 | `hub_unreachable_local_protection` | with hub<->member traffic dropped by an owned nft table inside both guests (host management stays up), the member reports the hub stale yet turns new local auth events into a decision and packet drop; the isolated hub does too |
 | `reconnect_convergence_ban_unban` | after the link returns, bans created during the outage converge both ways and an origin unban made during the outage reaches the hub (drop removed) |

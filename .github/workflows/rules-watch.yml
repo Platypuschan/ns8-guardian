@@ -1,0 +1,40 @@
+name: Detection rules watch
+# Weekly read-only check of the rule content a fresh engine build would ship. The engine image downloads the Hub
+# snapshot at BUILD time (runtime/Containerfile) and never at run time; this job shows what changed since the
+# committed runtime/hub-items.lock and proves the module's rule replay, offline start and rule-update path still hold.
+# It publishes nothing: shipping new rules means a normal push (Validate Guardian) and a new release candidate.
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  watch:
+    if: github.repository == 'Platypuschan/ns8-guardian'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the engine with the current public Hub snapshot
+        run: buildah bud --build-arg "SOURCE_REVISION=$GITHUB_SHA" -f runtime/Containerfile -t localhost/ns8-hybrid-engine:working .
+      - name: Compare shipped rule items with the committed lock
+        run: |
+          set -Eeuo pipefail
+          podman run --rm --entrypoint cscli localhost/ns8-hybrid-engine:working hub list -o raw \
+            | grep -v '^name' | cut -d, -f1,2,3 | sort > hub-items.now
+          {
+            echo '## Hub items vs runtime/hub-items.lock'
+            if diff -u runtime/hub-items.lock hub-items.now > hub-items.diff; then
+              echo 'No change.'
+            else
+              echo '```diff'; cat hub-items.diff; echo '```'
+              echo 'Update runtime/hub-items.lock in the commit that ships these rules.'
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Detection rules replayed in the fresh engine
+        run: HYBRID_ENGINE_IMAGE=localhost/ns8-hybrid-engine:working bash tests/test-rules.sh
+      - name: Offline start and rule update on an existing volume
+        run: PYTHONDONTWRITEBYTECODE=1 HYBRID_ENGINE_IMAGE=localhost/ns8-hybrid-engine:working python3 -m unittest qa.test_offline_runtime qa.test_engine_rule_update -v

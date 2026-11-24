@@ -144,6 +144,12 @@ class GuestOps:
             if code != '202':
                 raise RemoteError('%s: event for %s was not accepted (HTTP %s)' % (self.role, ip, code))
 
+    def ssh_attack(self, ip):
+        self.guest.run(g.ssh_attack_cmd(self.names, ip), timeout=300)
+
+    def http_scan(self, ip):
+        self.guest.run(g.http_scan_cmd(self.names, ip), timeout=200)
+
     def unban(self, ip):
         self.guest.run(g.api_run(self.mod_agent(), 'unban', {'addresses': [ip]}))
 

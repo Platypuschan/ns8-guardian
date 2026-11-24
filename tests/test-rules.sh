@@ -54,6 +54,9 @@ for ip, scenario in want["banned"].items():
 for ip in want["not_banned"]:
     if ip in got:
         errors.append("unexpected ban %s by %s" % (ip, sorted(got[ip])))
+for ip, scenario in want.get("not_by", {}).items():
+    if scenario in got.get(ip, set()):
+        errors.append("%s must not be banned by %s (attribution spoof)" % (ip, scenario))
 extra = set(got) - set(want["banned"]) - set(want["not_banned"])
 errors += ["unexpected ban %s" % ip for ip in sorted(extra)]
 print("\n".join(errors) if errors else "rules OK: %d bans as expected" % len(want["banned"]))

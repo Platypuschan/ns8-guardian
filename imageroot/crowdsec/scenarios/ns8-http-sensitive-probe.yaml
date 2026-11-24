@@ -6,7 +6,7 @@
   "type": "leaky",
   "name": "ns8/ns8-http-sensitive-probe",
   "description": "Probing for sensitive or exploit paths",
-  "filter": "evt.Meta.log_type == 'ns8_traefik_access' && evt.Meta.http_path matches '^/(\\\\.env|\\\\.git/|\\\\.svn/|\\\\.hg/|\\\\.aws/|\\\\.ssh/|\\\\.DS_Store|cgi-bin/|boaform/|vendor/phpunit/)|(^|/)\\\\.\\\\.(/|$)|%2e%2e|/etc/passwd'",
+  "filter": "evt.Meta.ns8_log == 'traefik' && evt.Meta.http_path matches '^/(\\\\.env|\\\\.git/|\\\\.svn/|\\\\.hg/|\\\\.aws/|\\\\.ssh/|\\\\.DS_Store|cgi-bin/|boaform/|vendor/phpunit/)|(^|/)\\\\.\\\\.(/|$)|%2e%2e|/etc/passwd'",
   "groupby": "evt.Meta.source_ip",
   "capacity": 2,
   "leakspeed": "5m",

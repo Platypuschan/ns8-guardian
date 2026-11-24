@@ -56,25 +56,34 @@ Design rationale: [docs/adr/0001-autonomous-hybrid.md](docs/adr/0001-autonomous-
 ## What is detected, and how
 
 Besides the application-specific rules (Gitea, Organizr, Samba, admin login and
-registered application events) there are two **generic HTTP scanner rules** on the
-NS8 Traefik access log, using Guardian's own parser (client address as written by
-Traefik itself, never a forgeable header):
+registered application events) the engine ships the stock CrowdSec Hub rules,
+downloaded **at image build time** and stored in the engine image (never fetched at
+run time): `crowdsecurity/linux` (SSH brute force, slow brute force, refused
+connections, CVE-2024-6387) and the HTTP collections `base-http-scenarios` and
+`http-cve` (path probing, sensitive files, backdoors, admin-interface probing, SQLi/XSS
+probe patterns, path traversal, WordPress scanning, technology probing, generic 401
+brute force, ~30 CVE exploit-path rules, whitelists for CDNs and search-engine crawlers).
 
-- `ns8/ns8-http-probing`: one client requesting more than 30 *distinct* paths that
-  answer 403/404 within a short time (the same missing path repeated does not count).
-- `ns8/ns8-http-sensitive-probe`: three requests within five minutes for paths no
-  NS8 application serves and scanners ask for first (`/.env`, `/.git/`, `/.svn/`,
-  `/cgi-bin/`, `/boaform/`, path traversal, `/etc/passwd`, ...). Application paths such as
-  `/wp-login.php` and smart-HTTP Git URLs are deliberately not matched.
+HTTP rules read the **Traefik access log through Guardian's own parser**, which takes the client address
+exactly as Traefik wrote it, never a forgeable header: the stock Traefik parser stays
+disabled because its client-IP interpretation failed the trusted-proxy fixture. NS8's
+Traefik does not log request headers, so user-agent rules (`http-bad-user-agent`) cannot match.
+`ns8/ns8-http-sensitive-probe` additionally bans three requests within five minutes for
+paths no NS8 application serves (`/.env`, `/.git/`, `/cgi-bin/`, `/boaform/`, traversal, ...).
 
-This is **not** a WAF: no request body or header inspection, no inline blocking, no
-CrowdSec community IP reputation. Stock Traefik/HTTP collections stay disabled
-because their client-IP interpretation failed the trusted-proxy fixture; do not
-enable them blindly.
+**Rule updates.** A new engine image is built from the then-current Hub snapshot; the module's
+start script makes an *existing* configuration volume follow the image (upstream only copies missing files), so
+`update-module` to a newer digest really brings new and changed rules and removes retired ones, while the module's own
+`ns8-*` rules and generated files are untouched. `runtime/hub-items.lock` records the shipped item versions; the weekly
+`rules-watch` workflow rebuilds with the current Hub, shows the diff and replays all rules, publishing nothing.
+
+This is **not** a WAF: no request body inspection and no inline blocking, and no CrowdSec community IP
+reputation (that requires the CrowdSec cloud; this module is offline by design).
 
 | Source | Signal | Ban after |
 | --- | --- | --- |
-| SSH | hub collection `crowdsecurity/sshd` (journal of `sshd.service`/`ssh.service`) | CrowdSec defaults |
+| SSH | hub collection `crowdsecurity/sshd` (journal of `sshd.service`/`ssh.service`) | CrowdSec defaults (verified in the hosted lab: 12 failures) |
+| HTTP scanning, exploit paths | stock HTTP rules on the Traefik access log (see above) | rule defaults (verified in the hosted lab: path scan) |
 | NS8 cluster-admin | Traefik access log: `POST /cluster-admin/api/login` → 401 on router `cluster-admin-https@file` | 5 failures (~10 min window) |
 | Gitea web | Traefik access log: `POST /user/login` → 200 (a successful login returns 303) | 5 failures |
 | Gitea git / API | Traefik access log: bursts of 401 on `/api/…` or `*.git` | > 30 in a burst |

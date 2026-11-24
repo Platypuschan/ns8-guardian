@@ -3,7 +3,7 @@
   "type": "leaky",
   "name": "ns8/ns8-gitea-web-bf",
   "description": "Gitea web login brute force (failed login form posts return 200)",
-  "filter": "evt.Meta.log_type == 'ns8_traefik_access' && evt.Meta.ns8_app == 'gitea' && evt.Meta.http_verb == 'POST' && evt.Meta.http_path == '/user/login' && evt.Meta.http_status == '200'",
+  "filter": "evt.Meta.ns8_log == 'traefik' && evt.Meta.ns8_app == 'gitea' && evt.Meta.http_verb == 'POST' && evt.Meta.http_path == '/user/login' && evt.Meta.http_status == '200'",
   "groupby": "evt.Meta.source_ip",
   "capacity": 4,
   "leakspeed": "2m",

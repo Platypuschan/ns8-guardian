@@ -154,6 +154,12 @@ class MockOps:
         self.n.buckets[ip] = self.n.buckets.get(ip, 0) + count
         if self.n.buckets[ip] > 4:                     # leaky bucket capacity 4: the 5th event overflows into a ban
             self.n.decisions[ip] = {'scenario': 'crowdsec/lab', 'expires_at': self.c.t + TTL}
+    def ssh_attack(self, ip):
+        if not self.c.m.get('no_ssh_detection'):
+            self.n.decisions[ip] = {'scenario': 'crowdsecurity/ssh-bf', 'expires_at': self.c.t + TTL}
+    def http_scan(self, ip):
+        if not self.c.m.get('no_http_detection'):
+            self.n.decisions[ip] = {'scenario': self.c.m.get('http_scenario', 'crowdsecurity/http-probing'), 'expires_at': self.c.t + TTL}
     def engine_restart(self):
         if self.c.m.get('no_replay'):
             self.n.buckets = {}                        # in-memory bucket state is gone and nothing refills it
@@ -254,6 +260,25 @@ class Scenario(unittest.TestCase):
         result, _ = run(no_replay=True)
         self.assertEqual(status(result, 'engine_restart_event_replay'), 'fail')
         self.assertRegex(reason(result, 'engine_restart_event_replay'), 'replay|ban')
+
+    def test_stock_detections_are_recorded_with_their_scenario(self):
+        result, _ = run()
+        for case, prefix in (('ssh_bruteforce_detection', 'crowdsecurity/ssh-'), ('http_scan_detection', 'crowdsecurity/http-')):
+            self.assertEqual(status(result, case), 'pass', reason(result, case))
+            evidence = [x for x in result['cases'] if x['id'] == case][0]['evidence']
+            self.assertTrue(evidence['scenario'].startswith(prefix))
+            self.assertFalse(evidence['reachable_after'])
+
+    def test_missing_ssh_or_http_detection_fails_its_own_case(self):
+        result, _ = run(no_ssh_detection=True, no_http_detection=True)
+        self.assertEqual(status(result, 'ssh_bruteforce_detection'), 'fail')
+        self.assertEqual(status(result, 'http_scan_detection'), 'fail')
+        self.assertIn('no decision', reason(result, 'http_scan_detection'))
+
+    def test_a_ban_from_an_unrelated_scenario_does_not_count_as_http_scan_detection(self):
+        result, _ = run(http_scenario='crowdsecurity/ssh-bf')
+        self.assertEqual(status(result, 'http_scan_detection'), 'fail')
+        self.assertIn('expected one of', reason(result, 'http_scan_detection'))
 
     def test_ttl_restart_at_import_is_caught(self):
         result, _ = run(reset_ttl=True)

@@ -13,6 +13,8 @@ REQUIRED_CASES = [
     'absolute_ttl',
     'no_echo',
     'allowlist_negative_control',
+    'ssh_bruteforce_detection',
+    'http_scan_detection',
     'engine_restart_event_replay',
     'hub_unreachable_local_protection',
     'reconnect_convergence_ban_unban',

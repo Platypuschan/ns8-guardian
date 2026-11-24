@@ -18,11 +18,17 @@ nodes:
   - grok:
       name: NS8_CLF
       apply_on: message
+# log_type/service make the stock crowdsecurity http-logs enrichment and the hub HTTP scenarios (http-probing,
+# http-sensitive-files, http-cve-*, ...) apply, with THIS parser's trusted client address (never X-Forwarded-For).
+# ns8_log marks the NS8-specific rules below. NS8 drops request headers from the access log: user-agent based
+# rules (http-bad-user-agent) cannot match and are harmless.
 statics:
   - meta: log_type
-    value: ns8_traefik_access
+    value: http_access-log
+  - meta: ns8_log
+    value: traefik
   - meta: service
-    value: ns8_traefik
+    value: http
   - meta: source_ip
     expression: evt.Parsed.client_ip
   - meta: http_status

@@ -19,6 +19,8 @@ Y_KEEP = '198.51.100.27'
 F_POST_REBOOT = '198.51.100.28'
 G_POST_REBOOT_HUB = '198.51.100.29'
 H_ENGINE_RESTART = '198.51.100.30'   # not an attacker-namespace address: only decisions/nftables are observed
+SSH_ATTACKER = '198.51.100.32'          # real sshd failures on the member (stock crowdsecurity/sshd rules)
+HTTP_SCANNER = '198.51.100.33'         # real path scan against the hub's Traefik (access-log rules)
 DISK_ROLLBACK_PROBE = '198.51.100.31'   # banned/probed only by the optional disk-rollback case
 I_UPDATE_BAN = '198.51.100.32'      # banned before the update/rollback case, must survive both directions
 J_UPDATE_POST = '198.51.100.33'     # banned after the roll-forward: the event path works again
@@ -132,6 +134,27 @@ class Scenario:
             out['positive_control'] = 'non-allowlisted addresses were banned by the same event path in the sync cases'
             return out
         self.case('allowlist_negative_control', check)
+
+    def stock_detections(self):
+        """Detections that do not come from Guardian's event path: sshd failures and an HTTP path scan through Traefik."""
+        def detect(node, ip, attack, prefixes, what):
+            def check():
+                before = node.reachable(ip)
+                attack(ip)
+                _require(wait_until(self.clock, lambda: _decision(node, ip) is not None, 150), '%s: no decision after the attack' % what)
+                decision = _decision(node, ip)
+                _require(any(decision['scenario'].startswith(p) for p in prefixes),
+                         '%s: decision came from %r, expected one of %s' % (what, decision['scenario'], prefixes))
+                _require(wait_until(self.clock, lambda: ev.nft_has_ip(node.nft(), ip), 60), '%s: %s never reached nftables' % (what, ip))
+                ev.assert_dropped(before, node.reachable(ip), what)
+                node.unban(ip)
+                return {'ip': ip, 'node': node.name, 'scenario': decision['scenario'], 'origin': decision.get('origin', ''),
+                        'reachable_before': before, 'reachable_after': False}
+            return check
+        self.case('ssh_bruteforce_detection', detect(self.member, SSH_ATTACKER, self.member.ssh_attack,
+                                                     ('crowdsecurity/ssh-',), 'sshd failures'))
+        self.case('http_scan_detection', detect(self.hub, HTTP_SCANNER, self.hub.http_scan,
+                                                ('crowdsecurity/http-', 'ns8/ns8-http-'), 'HTTP path scan'))
 
     def engine_restart_replay(self):
         """Consumer ACK + bucket rebuild: 3 failures reach the hub's engine (bucket capacity 4, no ban yet), the engine
@@ -358,6 +381,7 @@ class Scenario:
         self.sync_both_ways()
         self.no_echo()
         self.allowlist()
+        self.stock_detections()
         self.engine_restart_replay()
         self.outage_and_reconnect()
         self.reboot(self.member, self.hub, 'member_guest_reboot')

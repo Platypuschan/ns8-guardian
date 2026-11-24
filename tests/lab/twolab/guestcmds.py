@@ -196,3 +196,44 @@ def parse_hybrid_state(text):
         return data
     except (ValueError, KeyError, TypeError):
         raise ValueError('unparseable hybrid state probe output') from None
+
+
+# -- stock CrowdSec detections driven through the real service (not the Guardian event path) ----------------------
+SSH_ATTEMPTS = 12
+HTTP_SCAN_PATHS = 36
+
+
+def _synthetic_source(address):
+    ip = ipaddress.ip_address(address)
+    if ip not in TEST_NET or str(ip) == GUEST_ATTACK_IP:
+        raise ValueError('%s is not an allowed synthetic attacker address' % address)
+    return str(ip)
+
+
+def ssh_attack_cmd(names, source_ip, attempts=SSH_ATTEMPTS):
+    """Failed SSH logins against the guest's own sshd from the synthetic source (new invalid user names each time)."""
+    source = _synthetic_source(source_ip)
+    return ('for i in $(seq 1 %d); do ip netns exec %s timeout 20 ssh -o BatchMode=yes -o StrictHostKeyChecking=no '
+            '-o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=8 '
+            '-o PreferredAuthentications=password,keyboard-interactive -b %s labattacker$i@%s true >/dev/null 2>&1 || true; sleep 1; done'
+            % (int(attempts), attacker_ns(names), source, GUEST_ATTACK_IP))
+
+
+HTTP_SCAN_PY = (
+    'import socket,ssl,sys\n'
+    'ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE\n'
+    'paths=["/.env","/.git/config","/.env"]+["/lab-scan/page%d.php" % i for i in range(int(sys.argv[3]))]\n'
+    'for path in paths:\n'
+    ' try:\n'
+    '  s=socket.socket(); s.settimeout(5); s.bind((sys.argv[1],0)); s.connect((sys.argv[2],443))\n'
+    '  t=ctx.wrap_socket(s,server_hostname="lab.test")\n'
+    '  t.sendall(("GET %s HTTP/1.1\\r\\nHost: lab.test\\r\\nConnection: close\\r\\n\\r\\n" % path).encode()); t.recv(512); t.close()\n'
+    ' except OSError:\n'
+    '  pass\n')
+
+
+def http_scan_cmd(names, source_ip, paths=HTTP_SCAN_PATHS):
+    """A path scan against the guest's Traefik (unknown host -> 404): the access log, not an application event, must ban it."""
+    source = _synthetic_source(source_ip)
+    return 'ip netns exec %s timeout 120 python3 -c %s %s %s %d' % (
+        attacker_ns(names), shlex.quote(HTTP_SCAN_PY), source, GUEST_ATTACK_IP, int(paths))

@@ -100,7 +100,7 @@ def routers_parser(found):
     return yaml_doc({
         "name": "ns8/router-apps",
         "description": "Map NS8 Traefik routers to application kinds (generated)",
-        "filter": "evt.Meta.log_type == 'ns8_traefik_access'",
+        "filter": "evt.Meta.ns8_log == 'traefik'",
         "onsuccess": "next_stage",
         "statics": [{"meta": "ns8_app", "expression": expr}],
     })

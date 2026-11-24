@@ -11,7 +11,7 @@ RUN mkdir -p /etc/crowdsec /var/lib/crowdsec/data && \
     yq -i '.cscli.hub_branch = "master" | del(.api.server.online_client)' /etc/crowdsec/config.yaml && \
     cscli hub update && \
     cscli parsers install crowdsecurity/docker-logs crowdsecurity/cri-logs && \
-    cscli collections install crowdsecurity/linux && \
+    cscli collections install crowdsecurity/linux crowdsecurity/base-http-scenarios crowdsecurity/http-cve && \
     cp -a /etc/crowdsec/. /staging/etc/crowdsec/ && \
     cp -a /var/lib/crowdsec/data/. /staging/var/lib/crowdsec/data/ && \
     find /staging/etc/crowdsec /staging/var/lib/crowdsec/data -type f -exec sha256sum '{}' + > /ruleset-manifest.sha256

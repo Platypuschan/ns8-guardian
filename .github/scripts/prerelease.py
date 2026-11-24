@@ -138,9 +138,11 @@ acknowledged events are replayed, except for addresses unbanned since. This is
 at-least-once for events younger than the replay window (120 s), not exactly-once;
 a restored database never replays. Evidence: the hosted two-node NS8 lab (reboots,
 backup/restore, engine restart replay, private-CA enrollment) for the exact digest above.
-Remaining limits: application adapters are accepted per application; two generic HTTP
-scanner rules exist but this is not a WAF and not universal application-login coverage;
-no multi-day soak and no upgrade-path acceptance from earlier RCs are claimed.
+Detection: stock CrowdSec Hub rules (SSH, HTTP scanning, ~30 CVE exploit paths) are bundled in the
+engine image at build time and fed by a trusted-client-IP Traefik access-log parser; a rule update
+requires a new image digest. Remaining limits: application adapters are accepted per application;
+no WAF/AppSec inline blocking, no CrowdSec community reputation (offline by design), no
+user-agent rules (NS8 Traefik logs no headers), no multi-day soak.
 This prerelease is not production approval.'''
 
 
