@@ -10,7 +10,7 @@
       @close="error = ''"
     />
     <template>
-      <div class="toolbar">
+      <div class="bans-toolbar">
         <cv-button
           type="button"
           kind="danger"
@@ -151,7 +151,7 @@ h1,
 p {
   margin-bottom: 1rem;
 }
-.toolbar {
+.bans-toolbar {
   display: flex;
   gap: 1rem;
   align-items: flex-end;

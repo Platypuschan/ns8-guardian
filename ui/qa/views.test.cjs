@@ -325,3 +325,25 @@ test('status view reports unacknowledged and replayed events and flags a stuck b
   assert.equal(s.ackState, 'c.unknown');
   assert.equal(s.display(s.status.sync.event_unacked), 'c.unknown');
 });
+
+// The module UI is rendered inside the NS8 admin shell, whose global stylesheet (ns8-core core/ui/src/styles) is NOT loaded by the
+// local fixture. A class that the core styles globally changes this UI in production only: `.hint` there is a zero-size
+// tooltip anchor (width:0; height:0), which squeezed every helper paragraph into a one-word column that overlaid the page and
+// the side menu. Class names must therefore not collide with the core's, except the shell classes that are meant to match.
+test('no class name collides with the NS8 core global stylesheet', () => {
+  const core = new Set(fs.readFileSync(path.join(__dirname, 'ns8-core-classes.txt'), 'utf8').split(/\s+/).filter(Boolean));
+  const intended = new Set(['app-content', 'app-side-menu-content', 'app-side-nav', 'instance-name', 'current-page']);   // the NS8 app shell, copied on purpose
+  const found = new Map();
+  const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) return walk(full);
+    if (!e.name.endsWith('.vue')) return;
+    const text = fs.readFileSync(full, 'utf8');
+    const names = new Set();
+    for (const m of text.matchAll(/\sclass="([^"]+)"/g)) m[1].split(/\s+/).forEach(c => names.add(c));
+    for (const m of text.matchAll(/:class="[^"]*"/g)) for (const q of m[0].matchAll(/'([a-zA-Z0-9_-]+)'/g)) names.add(q[1]);
+    for (const c of names) if (core.has(c) && !intended.has(c)) found.set(c, (found.get(c) || []).concat(path.relative(root, full)));
+  });
+  walk(path.join(root, 'src'));
+  assert.deepEqual([...found.entries()], [], 'class names that the NS8 core styles globally: ' + JSON.stringify([...found.entries()]));
+});

@@ -36,7 +36,7 @@
             :disabled="configured || busy"
           />
         </cv-radio-group>
-        <p v-if="configured" class="hint">{{ $t("c.roleFixed") }}</p>
+        <p v-if="configured" class="field-hint">{{ $t("c.roleFixed") }}</p>
       </section>
       <section v-if="form.role === 'hub'">
         <h2>{{ $t("c.hubSettings") }}</h2>
@@ -68,7 +68,7 @@
           :invalid-message="fieldError('token')"
           :rows="3"
         />
-        <p class="hint">{{ $t("c.tlsRequired") }}</p>
+        <p class="field-hint">{{ $t("c.tlsRequired") }}</p>
       </section>
       <section v-if="form.role">
         <h2>{{ $t("c.protection") }}</h2>
@@ -90,18 +90,24 @@
           <template slot="text-left">{{ $t("c.disabled") }}</template>
           <template slot="text-right">{{ $t("c.enabled") }}</template>
         </cv-toggle>
-        <p class="hint">{{ $t("c.sambaAuditHelp") }}</p>
-        <cv-toggle v-model="form.community_blocklist" :label="$t('c.communityBlocklist')">
+        <p class="field-hint">{{ $t("c.sambaAuditHelp") }}</p>
+        <cv-toggle
+          v-model="form.community_blocklist"
+          :label="$t('c.communityBlocklist')"
+        >
           <template slot="text-left">{{ $t("c.disabled") }}</template>
           <template slot="text-right">{{ $t("c.enabled") }}</template>
         </cv-toggle>
-        <p class="hint">{{ $t("c.communityBlocklistHelp") }}</p>
+        <p class="field-hint">{{ $t("c.communityBlocklistHelp") }}</p>
         <template v-if="form.community_blocklist">
-          <cv-toggle v-model="form.community_sharing" :label="$t('c.communitySharing')">
+          <cv-toggle
+            v-model="form.community_sharing"
+            :label="$t('c.communitySharing')"
+          >
             <template slot="text-left">{{ $t("c.disabled") }}</template>
             <template slot="text-right">{{ $t("c.enabled") }}</template>
           </cv-toggle>
-          <p class="hint">{{ $t("c.communitySharingHelp") }}</p>
+          <p class="field-hint">{{ $t("c.communitySharingHelp") }}</p>
         </template>
       </section>
       <cv-button type="button" :disabled="busy || !form.role" @click="save">{{
@@ -178,7 +184,8 @@ export default {
         ban_duration: this.form.ban_duration.trim(),
         samba_audit: this.form.samba_audit,
         community_blocklist: this.form.community_blocklist,
-        community_sharing: this.form.community_blocklist && this.form.community_sharing,
+        community_sharing:
+          this.form.community_blocklist && this.form.community_sharing,
         allowlist: this.allowlist
           .split(/[\s,]+/)
           .map((v) => v.trim())
@@ -227,7 +234,7 @@ section {
 section > * {
   margin-bottom: 1rem;
 }
-.hint {
+.field-hint {
   color: #6f6f6f;
 }
 </style>
