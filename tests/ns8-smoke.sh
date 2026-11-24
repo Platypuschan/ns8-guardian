@@ -70,7 +70,10 @@ podman logs "$module" 2>&1 | grep -E "journalctl|Starting processing data" | hea
 
 step "failed NS8 admin logins until banned"
 decisions() { runagent -m "$module" podman exec "$module" cscli decisions list -o raw; }
-banned() { decisions | contains '198.51.100.2,ns8/ns8-admin-bf'; }
+alerts() { runagent -m "$module" podman exec "$module" cscli alerts list -o raw; }
+# The stock generic 401 rule also fires on the same requests and its decision may replace the ns8 one in the
+# decision list, so require the ban AND the NS8-specific alert separately.
+banned() { decisions | contains '198.51.100.2,' && alerts | contains 'ns8/ns8-admin-bf'; }
 # Like the upstream CrowdSec module tests: retry, since lines written while
 # the agent (re)starts are never read (journalctl -n 0).
 for try in 1 2 3 4; do
