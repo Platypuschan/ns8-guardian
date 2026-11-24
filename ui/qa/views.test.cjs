@@ -117,8 +117,6 @@ test('event sources are reachable through router and the shared desktop/mobile m
   for (const locale of ['en', 'de']) {
     const messages = JSON.parse(fs.readFileSync(path.join(root, 'public/i18n', locale, 'translation.json')));
     assert.ok(messages.eventSources.title);
-    assert.ok(messages.c.hookGuide);
-    assert.ok(messages.c.adapterGuide);
   }
 });
 
@@ -147,7 +145,6 @@ test('pending source recovery is localized, conditional and uses remove then rec
     assert.equal(typeof guidance, 'string');
     assert.ok(guidance.length < 400);
     assert.match(guidance, locale === 'en' ? /[Rr]emove.*recreate/ : /[Ee]ntfernen.*neu/);
-    assert.match(messages.c.fallbackGuide, locale === 'en' ? /active registration/ : /aktive Registrierung/);
   }
 });
 
@@ -243,11 +240,25 @@ test('sync capacity signals override stale, pending and idle with bounded locali
   }
 });
 
-test('event integration guide does not claim unavailable generic HTTP protection', () => {
+test('the event sources page carries no usage tutorial', () => {
+  const source = fs.readFileSync(path.join(root, 'src/views/EventSources.vue'), 'utf8');
+  assert.doesNotMatch(source, /Guide|integration/i);
   for (const locale of ['en', 'de']) {
     const messages = JSON.parse(fs.readFileSync(path.join(root, 'public/i18n', locale, 'translation.json')));
-    assert.doesNotMatch(messages.c.fallbackGuide, /protection remains active|HTTP-Schutz bleibt aktiv/);
+    for (const key of ['hookGuide', 'adapterGuide', 'fallbackGuide', 'integrationGuide']) assert.equal(messages.c[key], undefined);
   }
+});
+
+test('member count matches the status card (hub itself not counted) and tiles follow a logical order', () => {
+  const { instance: m } = mount('Members', async () => ({}));
+  m.members = [{ name: 'hub-local', local: true }, { name: 'a' }, { name: 'b' }];
+  assert.equal(m.remoteMembers.length, 2);
+  const { instance: st } = mount('Status', async () => ({}));
+  st.status = { services: { 'guardian1-refresh.timer': 'active', 'guardian1-sync.service': 'active', 'guardian1.service': 'active', 'guardian1-gateway.service': 'active', 'guardian1-bouncer.service': 'active' } };
+  assert.deepEqual(Array.from(st.serviceList, (x) => x.name), ['guardian1.service', 'guardian1-bouncer.service', 'guardian1-sync.service', 'guardian1-gateway.service', 'guardian1-refresh.timer']);
+  const tpl = fs.readFileSync(path.join(root, 'src/views/Status.vue'), 'utf8');
+  const at = (k) => tpl.indexOf(k);
+  assert.ok(at('roleShort') < at('syncShort') && at('syncShort') < at('status.active_bans') && at('status.active_bans') < at('status.community.entries') && at('status.community.entries') < at('status.members'));
 });
 
 test('opaque member token is not decoded; refresh, remove and destruction clear it', async () => {

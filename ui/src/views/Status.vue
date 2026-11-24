@@ -62,6 +62,16 @@
           <cv-column :md="4" :max="4">
             <NsInfoCard
               light
+              :title="syncShort"
+              :description="$t('c.centralSync')"
+              :icon="Network_332"
+              :loading="loading"
+              class="min-height-card"
+            />
+          </cv-column>
+          <cv-column :md="4" :max="4">
+            <NsInfoCard
+              light
               :title="display(status.active_bans)"
               :description="$t('c.activeBans')"
               :icon="Locked32"
@@ -79,16 +89,6 @@
               :title="display(status.community.entries)"
               :description="$t('c.activeCommunity')"
               :icon="Cloud32"
-              :loading="loading"
-              class="min-height-card"
-            />
-          </cv-column>
-          <cv-column :md="4" :max="4">
-            <NsInfoCard
-              light
-              :title="syncShort"
-              :description="$t('c.centralSync')"
-              :icon="Network_332"
               :loading="loading"
               class="min-height-card"
             />
@@ -296,11 +296,26 @@ export default {
     },
     serviceList() {
       const services = (this.status && this.status.services) || {};
-      return Object.keys(services).map((name) => ({
-        name,
-        active: services[name] === "active",
-        failed: services[name] === "failed",
-      }));
+      const rank = (name) => {
+        const i = [
+          ".service",
+          "-bouncer.",
+          "-sync.",
+          "-gateway.",
+          "-refresh.",
+        ].findIndex(
+          (part) =>
+            name.includes(part) && (part !== ".service" || !/-\w+\./.test(name))
+        );
+        return i < 0 ? 99 : i;
+      };
+      return Object.keys(services)
+        .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+        .map((name) => ({
+          name,
+          active: services[name] === "active",
+          failed: services[name] === "failed",
+        }));
     },
     ackState() {
       const sync = this.status && this.status.sync;

@@ -131,20 +131,6 @@
         </cv-data-table>
       </cv-column>
     </cv-row>
-    <cv-row>
-      <cv-column class="page-subtitle">
-        <h4>{{ $t("c.integrationGuide") }}</h4>
-      </cv-column>
-    </cv-row>
-    <cv-row>
-      <cv-column>
-        <cv-tile light>
-          <p class="mg-bottom-md">{{ $t("c.hookGuide") }}</p>
-          <p class="mg-bottom-md">{{ $t("c.adapterGuide") }}</p>
-          <p>{{ $t("c.fallbackGuide") }}</p>
-        </cv-tile>
-      </cv-column>
-    </cv-row>
     <NsDangerDeleteModal
       :isShown="!!toRemove"
       :name="toRemove"

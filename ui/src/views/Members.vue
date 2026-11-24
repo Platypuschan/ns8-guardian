@@ -80,7 +80,7 @@
       </cv-row>
       <cv-row>
         <cv-column class="page-subtitle">
-          <h4>{{ $t("c.connected") }} ({{ members.length }})</h4>
+          <h4>{{ $t("c.connected") }} ({{ remoteMembers.length }})</h4>
         </cv-column>
       </cv-row>
       <cv-row class="toolbar">
@@ -181,6 +181,10 @@ export default {
     this.load();
   },
   computed: {
+    // same figure as the status card: registered agents, without the hub itself
+    remoteMembers() {
+      return this.members.filter((m) => !m.local);
+    },
     columns() {
       return [
         this.$t("c.name"),
