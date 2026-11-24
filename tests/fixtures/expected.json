@@ -16,7 +16,9 @@
     "198.51.100.62": "crowdsecurity/http-admin-interface-probing",
     "198.51.100.63": "crowdsecurity/http-backdoors-attempts",
     "198.51.100.64": "crowdsecurity/http-cve-2021-41773",
-    "198.51.100.70": "crowdsecurity/http-bad-user-agent"
+    "198.51.100.70": "crowdsecurity/http-bad-user-agent",
+    "198.51.100.88": "ns8/ns8-gitea-2fa-bf",
+    "198.51.100.89": "ns8/ns8-gitea-2fa-bf"
   },
   "not_banned": [
     "198.51.100.22",
@@ -34,7 +36,8 @@
     "198.51.100.66",
     "198.51.100.67",
     "198.51.100.71",
-    "198.51.100.72"
+    "198.51.100.72",
+    "198.51.100.90"
   ],
   "not_by": {
     "198.51.100.26": "ns8/ns8-admin-bf",
