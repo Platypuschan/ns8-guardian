@@ -1,7 +1,9 @@
 # NS8 Traefik access log (common log format) from the traefik container.
-# Traefik writes these records itself and NS8 drops request headers from the
-# log, so clients cannot forge them. The final router/backend/duration fields
-# are matched from the end of the line, after any quoted client data.
+# Traefik writes these records itself; the client address, router and backend cannot be forged by the client. The
+# referer and User-Agent fields are client data (Traefik quotes and escapes them): the User-Agent is captured only as
+# http_user_agent for the stock bad-user-agent rule and can influence nothing else. Stock NS8 Traefik logs "-" there
+# (request headers are dropped); the User-Agent is filled once the Traefik module keeps that header (upstream PR #152).
+# The final router/backend/duration fields are matched from the end of the line, after any quoted client data.
 name: ns8/traefik-access
 description: "Parse the NS8 Traefik access log"
 filter: "evt.Line.Labels.ns8_source == 'traefik'"
@@ -13,15 +15,15 @@ pattern_syntax:
   NS8_TARGET: '\S+'
   NS8_STATUS: '[0-9]{3}'
   NS8_QVALUE: '[^"\\]*'
-  NS8_CLF: '^%{NS8_IP:client_ip} - \S+ \[%{NS8_BRACKETED:timestamp}\] "%{NS8_VERB:verb} %{NS8_TARGET:request} HTTP/[0-9.]+" %{NS8_STATUS:status} \S+ "(?:[^"\\]|\\.)*" "(?:[^"\\]|\\.)*" [0-9]+ "%{NS8_QVALUE:router}" "%{NS8_QVALUE:backend}" [0-9]+ms$'
+  NS8_QESC: '(?:[^"\\]|\\.)*'
+  NS8_CLF: '^%{NS8_IP:client_ip} - \S+ \[%{NS8_BRACKETED:timestamp}\] "%{NS8_VERB:verb} %{NS8_TARGET:request} HTTP/[0-9.]+" %{NS8_STATUS:status} \S+ "%{NS8_QESC}" "%{NS8_QESC:http_user_agent}" [0-9]+ "%{NS8_QVALUE:router}" "%{NS8_QVALUE:backend}" [0-9]+ms$'
 nodes:
   - grok:
       name: NS8_CLF
       apply_on: message
 # log_type/service make the stock crowdsecurity http-logs enrichment and the hub HTTP scenarios (http-probing,
 # http-sensitive-files, http-cve-*, ...) apply, with THIS parser's trusted client address (never X-Forwarded-For).
-# ns8_log marks the NS8-specific rules below. NS8 drops request headers from the access log: user-agent based
-# rules (http-bad-user-agent) cannot match and are harmless.
+# ns8_log marks the NS8-specific rules below.
 statics:
   - meta: log_type
     value: http_access-log

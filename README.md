@@ -67,7 +67,7 @@ brute force, ~30 CVE exploit-path rules, whitelists for CDNs and search-engine c
 HTTP rules read the **Traefik access log through Guardian's own parser**, which takes the client address
 exactly as Traefik wrote it, never a forgeable header: the stock Traefik parser stays
 disabled because its client-IP interpretation failed the trusted-proxy fixture. NS8's
-Traefik does not log request headers, so user-agent rules (`http-bad-user-agent`) cannot match.
+Traefik drops request headers from its access log, so the stock `http-bad-user-agent` rule (known scanner tools such as Nikto) only matches once the Traefik module keeps the `User-Agent` header (change proposed in [ns8-traefik-reworked#14](https://github.com/Platypuschan/ns8-traefik-reworked/pull/14) and upstream NethServer/ns8-traefik#152); the parser already reads it, no Guardian change is needed afterwards.
 `ns8/ns8-http-sensitive-probe` additionally bans three requests within five minutes for
 paths no NS8 application serves (`/.env`, `/.git/`, `/cgi-bin/`, `/boaform/`, traversal, ...).
 
