@@ -1,100 +1,160 @@
 <template>
-  <div class="page">
-    <h1>{{ $t("members.title") }}</h1>
-    <p>{{ $t("c.membersHelp") }}</p>
-    <cv-inline-notification
-      v-if="error"
-      kind="error"
-      :title="$t('c.error')"
-      :sub-title="error"
-      @close="error = ''"
-    />
-    <cv-inline-notification
-      v-if="notHub"
-      kind="info"
-      :title="$t('c.hubOnly')"
-    />
-    <template v-else>
-      <section class="add">
-        <h2>{{ $t("c.addMember") }}</h2>
-        <cv-text-input
-          v-model="name"
-          :label="$t('c.memberName')"
-          :helper-text="$t('c.memberNameHelp')"
-          :invalid-message="nameError"
-          placeholder="ns8-office"
+  <cv-grid fullWidth>
+    <cv-row>
+      <cv-column class="page-title">
+        <h2>{{ $t("members.title") }}</h2>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column>
+        <p class="mg-bottom-md">{{ $t("c.membersHelp") }}</p>
+      </cv-column>
+    </cv-row>
+    <cv-row v-if="error">
+      <cv-column>
+        <NsInlineNotification
+          kind="error"
+          :title="$t('c.error')"
+          :description="error"
+          :showCloseButton="false"
         />
-        <cv-button
-          type="button"
-          :disabled="busy || !name.trim()"
-          @click="add"
-          >{{ $t("c.createToken") }}</cv-button
-        >
-        <div v-if="token" class="token">
-          <cv-inline-notification
-            kind="warning"
-            :title="$t('c.tokenOnce')"
-            :sub-title="$t('c.tokenOnceHelp')"
-            :low-contrast="true"
-          />
-          <p>{{ $t("c.token") }}</p>
-          <pre class="secret">{{ token }}</pre>
-          <p>
-            {{ $t("c.hubUrl") }}: <code>{{ hubUrl }}</code>
-          </p>
-        </div>
-      </section>
-      <section>
-        <h2>{{ $t("c.connected") }} ({{ members.length }})</h2>
-        <cv-button
-          type="button"
-          kind="ghost"
-          size="small"
-          :disabled="busy"
-          @click="load"
-          >{{ $t("c.refresh") }}</cv-button
-        >
-        <div class="table-scroll">
-          <table class="bx--data-table">
-            <thead>
-              <tr>
-                <th>{{ $t("c.name") }}</th>
-                <th>{{ $t("c.address") }}</th>
-                <th>{{ $t("c.lastAlert") }}</th>
-                <th>{{ $t("c.lastHeartbeat") }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="m in members" :key="m.name">
-                <td>
+      </cv-column>
+    </cv-row>
+    <cv-row v-if="notHub">
+      <cv-column>
+        <NsInlineNotification
+          kind="info"
+          :title="$t('c.hubOnly')"
+          :showCloseButton="false"
+        />
+      </cv-column>
+    </cv-row>
+    <template v-else>
+      <cv-row>
+        <cv-column class="page-subtitle">
+          <h4>{{ $t("c.addMember") }}</h4>
+        </cv-column>
+      </cv-row>
+      <cv-row>
+        <cv-column>
+          <cv-tile light>
+            <cv-form @submit.prevent>
+              <cv-text-input
+                v-model="name"
+                :label="$t('c.memberName')"
+                :helper-text="$t('c.memberNameHelp')"
+                :invalid-message="nameError"
+                :disabled="busy"
+                placeholder="ns8-office"
+                class="mg-bottom-md"
+              />
+              <NsButton
+                type="button"
+                kind="primary"
+                :icon="Add20"
+                :loading="busy"
+                :disabled="busy || !name.trim()"
+                @click="add"
+                >{{ $t("c.createToken") }}</NsButton
+              >
+            </cv-form>
+            <div v-if="token" class="token mg-top-lg">
+              <NsInlineNotification
+                kind="warning"
+                :title="$t('c.tokenOnce')"
+                :description="$t('c.tokenOnceHelp')"
+                :showCloseButton="false"
+              />
+              <div class="bx--form__helper-text mg-bottom-sm">
+                {{ $t("c.token") }}
+              </div>
+              <cv-code-snippet kind="multi" class="secret mg-bottom-md">{{
+                token
+              }}</cv-code-snippet>
+              <p>
+                {{ $t("c.hubUrl") }}: <code>{{ hubUrl }}</code>
+              </p>
+            </div>
+          </cv-tile>
+        </cv-column>
+      </cv-row>
+      <cv-row>
+        <cv-column class="page-subtitle">
+          <h4>{{ $t("c.connected") }} ({{ members.length }})</h4>
+        </cv-column>
+      </cv-row>
+      <cv-row class="toolbar">
+        <cv-column>
+          <NsButton
+            type="button"
+            kind="ghost"
+            :icon="Renew20"
+            :disabled="busy"
+            @click="load"
+            >{{ $t("c.refresh") }}</NsButton
+          >
+        </cv-column>
+      </cv-row>
+      <cv-row>
+        <cv-column>
+          <cv-tile v-if="!members.length && !busy" light>
+            <NsEmptyState :title="$t('c.noMembers')" />
+          </cv-tile>
+          <cv-data-table v-else :columns="columns" :zebra="false">
+            <template slot="data">
+              <cv-data-table-row
+                v-for="m in members"
+                :key="m.name"
+                :value="m.name"
+              >
+                <cv-data-table-cell>
                   {{ m.name }}
                   <span v-if="m.local">({{ $t("c.thisHub") }})</span>
-                </td>
-                <td>{{ m.ip_address || "—" }}</td>
-                <td>{{ when(m.last_push) }}</td>
-                <td>{{ when(m.last_heartbeat) }}</td>
-                <td>
-                  <cv-button
-                    type="button"
+                </cv-data-table-cell>
+                <cv-data-table-cell>{{
+                  m.ip_address || "—"
+                }}</cv-data-table-cell>
+                <cv-data-table-cell>{{ when(m.last_push) }}</cv-data-table-cell>
+                <cv-data-table-cell>{{
+                  when(m.last_heartbeat)
+                }}</cv-data-table-cell>
+                <cv-data-table-cell>
+                  <NsButton
                     v-if="!m.local"
+                    type="button"
                     kind="danger--ghost"
                     size="small"
+                    :icon="TrashCan20"
                     :disabled="busy"
-                    @click="remove(m.name)"
-                    >{{ $t("c.remove") }}</cv-button
+                    @click="toRemove = m.name"
+                    >{{ $t("c.remove") }}</NsButton
                   >
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </cv-data-table-cell>
+              </cv-data-table-row>
+            </template>
+          </cv-data-table>
+        </cv-column>
+      </cv-row>
+      <NsDangerDeleteModal
+        :isShown="!!toRemove"
+        :name="toRemove"
+        :title="$t('c.removeTitle')"
+        :warning="$t('c.removeWarning')"
+        :description="$t('c.confirmRemove', { name: toRemove })"
+        :typeToConfirm="$t('c.typeToConfirm', { name: toRemove })"
+        :cancelLabel="$t('c.cancel')"
+        :deleteLabel="$t('c.removeConfirm')"
+        @hide="toRemove = ''"
+        @confirmDelete="remove(toRemove)"
+      />
     </template>
-  </div>
+  </cv-grid>
 </template>
 <script>
 import task from "../task";
+import Add20 from "@carbon/icons-vue/es/add/20";
+import Renew20 from "@carbon/icons-vue/es/renew/20";
+import TrashCan20 from "@carbon/icons-vue/es/trash-can/20";
 export default {
   name: "Members",
   mixins: [task],
@@ -108,6 +168,10 @@ export default {
     nameError: "",
     token: "",
     hubUrl: "",
+    toRemove: "",
+    Add20,
+    Renew20,
+    TrashCan20,
   }),
   beforeDestroy() {
     this.disposed = true;
@@ -115,6 +179,17 @@ export default {
   },
   created() {
     this.load();
+  },
+  computed: {
+    columns() {
+      return [
+        this.$t("c.name"),
+        this.$t("c.address"),
+        this.$t("c.lastAlert"),
+        this.$t("c.lastHeartbeat"),
+        "",
+      ];
+    },
   },
   methods: {
     clearToken() {
@@ -171,7 +246,7 @@ export default {
     },
     async remove(name) {
       this.clearToken();
-      if (!window.confirm(this.$t("c.confirmRemove", { name }))) return;
+      this.toRemove = "";
       this.busy = true;
       try {
         await this.task("remove-member", { name });
@@ -185,26 +260,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-.page {
-  max-width: 1050px;
-}
-h1,
-h2,
-p,
-section > * {
-  margin-bottom: 1rem;
-}
-section {
-  margin: 2rem 0;
-}
-pre {
-  background: #f4f4f4;
-  padding: 1rem;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.table-scroll {
-  overflow-x: auto;
-}
-</style>

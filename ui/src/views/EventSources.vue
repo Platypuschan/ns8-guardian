@@ -1,102 +1,169 @@
 <template>
-  <div class="page">
-    <h1>{{ $t("eventSources.title") }}</h1>
-    <p>{{ $t("c.eventSourcesHelp") }}</p>
-    <cv-inline-notification
-      v-if="error"
-      kind="error"
-      :title="$t('c.error')"
-      :sub-title="error"
-      @close="error = ''"
-    />
-    <section>
-      <h2>{{ $t("c.addEventSource") }}</h2>
-      <cv-text-input
-        v-model="name"
-        :label="$t('c.name')"
-        :helper-text="$t('c.memberNameHelp')"
-        :invalid-message="fieldError('name')"
-      />
-      <cv-text-input
-        v-model="module"
-        :label="$t('c.moduleIdentity')"
-        :helper-text="$t('c.moduleIdentityHelp')"
-        :invalid-message="fieldError('module')"
-        placeholder="gitea1"
-      />
-      <cv-button
-        type="button"
-        :disabled="busy || !name.trim() || !module.trim()"
-        @click="add"
-        >{{ $t("c.createToken") }}</cv-button
-      >
-      <div v-if="token" class="token">
-        <cv-inline-notification
-          kind="warning"
-          :title="$t('c.tokenOnce')"
-          :sub-title="$t('c.sourceTokenOnce')"
+  <cv-grid fullWidth>
+    <cv-row>
+      <cv-column class="page-title">
+        <h2>{{ $t("eventSources.title") }}</h2>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column>
+        <p class="mg-bottom-md">{{ $t("c.eventSourcesHelp") }}</p>
+      </cv-column>
+    </cv-row>
+    <cv-row v-if="error">
+      <cv-column>
+        <NsInlineNotification
+          kind="error"
+          :title="$t('c.error')"
+          :description="error"
+          :showCloseButton="false"
         />
-        <p>{{ $t("c.sourceToken") }}</p>
-        <pre class="secret">{{ token }}</pre>
-        <p>
-          {{ $t("c.eventIngress") }}: <code>{{ endpoint }}</code>
-        </p>
-        <p>{{ $t("c.sourceTokenScope") }}</p>
-      </div>
-    </section>
-    <section>
-      <h2>{{ $t("c.registeredSources") }} ({{ sources.length }})</h2>
-      <cv-button type="button" kind="ghost" :disabled="busy" @click="load">{{
-        $t("c.refresh")
-      }}</cv-button>
-      <div class="table-scroll">
-        <table class="bx--data-table">
-          <thead>
-            <tr>
-              <th>{{ $t("c.name") }}</th>
-              <th>{{ $t("c.moduleIdentity") }}</th>
-              <th>{{ $t("c.sourceType") }}</th>
-              <th>{{ $t("c.sourceStatus") }}</th>
-              <th>{{ $t("c.actions") }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="source in sources" :key="source.name">
-              <td>{{ source.name }}</td>
-              <td>{{ source.module }}</td>
-              <td>{{ $t("c.authEvents") }}</td>
-              <td>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column class="page-subtitle">
+        <h4>{{ $t("c.addEventSource") }}</h4>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column>
+        <cv-tile light>
+          <cv-form @submit.prevent>
+            <cv-text-input
+              v-model="name"
+              :label="$t('c.name')"
+              :helper-text="$t('c.memberNameHelp')"
+              :invalid-message="fieldError('name')"
+              :disabled="busy"
+              class="mg-bottom-md"
+            />
+            <cv-text-input
+              v-model="module"
+              :label="$t('c.moduleIdentity')"
+              :helper-text="$t('c.moduleIdentityHelp')"
+              :invalid-message="fieldError('module')"
+              :disabled="busy"
+              placeholder="gitea1"
+              class="mg-bottom-md"
+            />
+            <NsButton
+              type="button"
+              kind="primary"
+              :icon="Add20"
+              :loading="busy"
+              :disabled="busy || !name.trim() || !module.trim()"
+              @click="add"
+              >{{ $t("c.createToken") }}</NsButton
+            >
+          </cv-form>
+          <div v-if="token" class="token mg-top-lg">
+            <NsInlineNotification
+              kind="warning"
+              :title="$t('c.tokenOnce')"
+              :description="$t('c.sourceTokenOnce')"
+              :showCloseButton="false"
+            />
+            <div class="bx--form__helper-text mg-bottom-sm">
+              {{ $t("c.sourceToken") }}
+            </div>
+            <cv-code-snippet kind="multi" class="secret mg-bottom-md">{{
+              token
+            }}</cv-code-snippet>
+            <p class="mg-bottom-sm">
+              {{ $t("c.eventIngress") }}: <code>{{ endpoint }}</code>
+            </p>
+            <p>{{ $t("c.sourceTokenScope") }}</p>
+          </div>
+        </cv-tile>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column class="page-subtitle">
+        <h4>{{ $t("c.registeredSources") }} ({{ sources.length }})</h4>
+      </cv-column>
+    </cv-row>
+    <cv-row class="toolbar">
+      <cv-column>
+        <NsButton
+          type="button"
+          kind="ghost"
+          :icon="Renew20"
+          :disabled="busy"
+          @click="load"
+          >{{ $t("c.refresh") }}</NsButton
+        >
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column>
+        <cv-tile v-if="!sources.length && !busy" light>
+          <NsEmptyState :title="$t('c.noEventSources')" />
+        </cv-tile>
+        <cv-data-table v-else :columns="columns" :zebra="false">
+          <template slot="data">
+            <cv-data-table-row
+              v-for="source in sources"
+              :key="source.name"
+              :value="source.name"
+            >
+              <cv-data-table-cell>{{ source.name }}</cv-data-table-cell>
+              <cv-data-table-cell>{{ source.module }}</cv-data-table-cell>
+              <cv-data-table-cell>{{ $t("c.authEvents") }}</cv-data-table-cell>
+              <cv-data-table-cell>
                 {{ sourceState(source) }}
                 <p v-if="source.active === 0">
                   {{ $t("c.sourcePendingRecovery") }}
                 </p>
-              </td>
-              <td>
-                <cv-button
+              </cv-data-table-cell>
+              <cv-data-table-cell>
+                <NsButton
                   type="button"
                   kind="danger--ghost"
                   size="small"
+                  :icon="TrashCan20"
                   :disabled="busy"
-                  @click="remove(source.name)"
-                  >{{ $t("c.remove") }}</cv-button
+                  @click="toRemove = source.name"
+                  >{{ $t("c.remove") }}</NsButton
                 >
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p v-if="!sources.length && !busy">{{ $t("c.noEventSources") }}</p>
-    </section>
-    <section>
-      <h2>{{ $t("c.integrationGuide") }}</h2>
-      <p>{{ $t("c.hookGuide") }}</p>
-      <p>{{ $t("c.adapterGuide") }}</p>
-      <p>{{ $t("c.fallbackGuide") }}</p>
-    </section>
-  </div>
+              </cv-data-table-cell>
+            </cv-data-table-row>
+          </template>
+        </cv-data-table>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column class="page-subtitle">
+        <h4>{{ $t("c.integrationGuide") }}</h4>
+      </cv-column>
+    </cv-row>
+    <cv-row>
+      <cv-column>
+        <cv-tile light>
+          <p class="mg-bottom-md">{{ $t("c.hookGuide") }}</p>
+          <p class="mg-bottom-md">{{ $t("c.adapterGuide") }}</p>
+          <p>{{ $t("c.fallbackGuide") }}</p>
+        </cv-tile>
+      </cv-column>
+    </cv-row>
+    <NsDangerDeleteModal
+      :isShown="!!toRemove"
+      :name="toRemove"
+      :title="$t('c.removeTitle')"
+      :warning="$t('c.removeWarning')"
+      :description="$t('c.confirmRemoveSource', { name: toRemove })"
+      :typeToConfirm="$t('c.typeToConfirm', { name: toRemove })"
+      :cancelLabel="$t('c.cancel')"
+      :deleteLabel="$t('c.removeConfirm')"
+      @hide="toRemove = ''"
+      @confirmDelete="remove(toRemove)"
+    />
+  </cv-grid>
 </template>
 <script>
 import task from "../task";
+import Add20 from "@carbon/icons-vue/es/add/20";
+import Renew20 from "@carbon/icons-vue/es/renew/20";
+import TrashCan20 from "@carbon/icons-vue/es/trash-can/20";
 export default {
   name: "EventSources",
   mixins: [task],
@@ -110,6 +177,10 @@ export default {
     sources: [],
     token: "",
     endpoint: "",
+    toRemove: "",
+    Add20,
+    Renew20,
+    TrashCan20,
   }),
   created() {
     this.load();
@@ -117,6 +188,17 @@ export default {
   beforeDestroy() {
     this.disposed = true;
     this.clearToken();
+  },
+  computed: {
+    columns() {
+      return [
+        this.$t("c.name"),
+        this.$t("c.moduleIdentity"),
+        this.$t("c.sourceType"),
+        this.$t("c.sourceStatus"),
+        "",
+      ];
+    },
   },
   methods: {
     sourceState(source) {
@@ -177,7 +259,7 @@ export default {
     },
     async remove(name) {
       this.clearToken();
-      if (!window.confirm(this.$t("c.confirmRemoveSource", { name }))) return;
+      this.toRemove = "";
       this.error = "";
       this.busy = true;
       try {
@@ -192,26 +274,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-.page {
-  max-width: 1050px;
-}
-h1,
-h2,
-p,
-section > * {
-  margin-bottom: 1rem;
-}
-section {
-  margin: 2rem 0;
-}
-.secret {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: #f4f4f4;
-  padding: 1rem;
-}
-.table-scroll {
-  overflow-x: auto;
-}
-</style>

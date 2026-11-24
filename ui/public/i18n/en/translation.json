@@ -29,7 +29,7 @@
   "c": {
     "intro": "Each host detects and enforces bans locally, including while the private controller is unreachable. The hub exchanges changes after reconnection; it is not the local protection engine.",
     "aboutSources": "Hybrid detection combines application authentication events with log detection. Registering a source does not install an application hook or adapter. Available sources depend on local modules and their integration.",
-    "aboutCloud": "The CrowdSec Central API, community blocklist and console enrollment are always disabled.",
+    "aboutCloud": "Cloud features are off by default. The CrowdSec community blocklist can be switched on in the settings; console enrollment is never enabled.",
     "documentation": "Documentation",
     "error": "Error",
     "ready": "Ready",
@@ -161,7 +161,28 @@
     "integrationGuide": "Integration guide",
     "hookGuide": "Actual application hook: report only authentication_failed events from a trustworthy authentication result, using the original event ID, UTC time and real client IP. The source token determines the module identity. Registration does not install hooks in Gitea, Vaultwarden or other apps.",
     "adapterGuide": "Structured-log adapter: if no hook exists, run a separate trusted adapter that reads the app’s structured authentication audit logs and sends equivalent events. Verify failure semantics and client IP handling first; an HTTP status alone is not proof of a failed login.",
-    "fallbackGuide": "For a module with an active registration, fallback login detection from proxy logs is disabled to avoid duplicates; pending registrations do not disable it. Generic HTTP scanner detection works on the Traefik access log only, not on this event path, and this module is not a WAF. Connect and verify the producer before relying on this path; registration is not evidence that events are arriving."
+    "fallbackGuide": "For a module with an active registration, fallback login detection from proxy logs is disabled to avoid duplicates; pending registrations do not disable it. Generic HTTP scanner detection works on the Traefik access log only, not on this event path, and this module is not a WAF. Connect and verify the producer before relying on this path; registration is not evidence that events are arriving.",
+    "svcActive": "Active",
+    "svcInactive": "Inactive",
+    "svcFailed": "Failed",
+    "svcEnabled": "Enabled",
+    "svcDisabled": "Disabled",
+    "details": "Details",
+    "removeTitle": "Remove entry",
+    "removeWarning": "Please read carefully",
+    "typeToConfirm": "Type \"{name}\" to confirm",
+    "cancel": "Cancel",
+    "removeConfirm": "I understand, remove",
+    "roleHubShort": "Hub",
+    "roleMemberShort": "Member",
+    "syncShortIdle": "In sync",
+    "syncShortStale": "Stale",
+    "syncShortPending": "Pending",
+    "syncShortOverload": "Overloaded",
+    "syncShortError": "Error",
+    "noMembers": "No members connected.",
+    "letsEncryptHelp": "Request a Let's Encrypt certificate for the hub host name through the NS8 Traefik.",
+    "clearSearch": "Clear search"
   },
   "eventSources": {
     "title": "Event sources"

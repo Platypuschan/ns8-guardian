@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 function view(name) {
   const source = fs.readFileSync(path.join(root, 'src/views', name + '.vue'), 'utf8');
   const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
-    .replace(/import task from "..\/task";/, 'const task = {};')
+    .replace(/import (\w+) from "[^"]+";/g, 'const $1 = {};')
     .replace('export default', 'module.exports =');
   const context = { module: { exports: {} }, window: { confirm: () => true }, Date, Set };
   vm.runInNewContext(script, context);
@@ -131,7 +131,7 @@ test('event sources distinguish pending, active and unknown registration state f
   for (const active of [undefined, null, false, true, '1', '0', 2]) {
     assert.equal(s.sourceState({ active }), 'c.unknown');
   }
-  assert.match(template, /c.sourceStatus/);
+  assert.match(fs.readFileSync(path.join(root, 'src/views/EventSources.vue'), 'utf8'), /c.sourceStatus/);
   assert.match(template, /sourceState\(source\)/);
   assert.match(template, /c.authEvents/);
 });
@@ -172,7 +172,7 @@ test('event source provisioning uses module identity and a separate ephemeral be
   assert.equal(calls[0].data.module, 'gitea1');
   assert.equal(s.sources.length, 1);
   assert.equal(s.token, '<img src=x onerror=alert(1)>');
-  assert.match(template, /{{ token }}/);
+  assert.match(template, /{{\s*token\s*}}/);
   assert.doesNotMatch(template, /v-html/);
   await s.load();
   assert.equal(s.token, '');
@@ -261,7 +261,7 @@ test('opaque member token is not decoded; refresh, remove and destruction clear 
   assert.equal(m.token, 'csc2.opaque');
   assert.equal(m.hubUrl, 'https://hub.example');
   assert.doesNotMatch(template, /manualSetup|manual\s*}}/);
-  assert.match(template, /{{ token }}/);
+  assert.match(template, /{{\s*token\s*}}/);
   assert.equal(Object.hasOwn(component.computed || {}, 'manual'), false);
   await m.load();
   assert.equal(m.token, '');
@@ -332,7 +332,10 @@ test('status view reports unacknowledged and replayed events and flags a stuck b
 // the side menu. Class names must therefore not collide with the core's, except the shell classes that are meant to match.
 test('no class name collides with the NS8 core global stylesheet', () => {
   const core = new Set(fs.readFileSync(path.join(__dirname, 'ns8-core-classes.txt'), 'utf8').split(/\s+/).filter(Boolean));
-  const intended = new Set(['app-content', 'app-side-menu-content', 'app-side-nav', 'instance-name', 'current-page']);   // the NS8 app shell, copied on purpose
+  const shell = ['app-content', 'app-side-menu-content', 'app-side-nav', 'instance-name', 'current-page'];   // the NS8 app shell, copied on purpose
+  // layout helpers that the official modules use on purpose to look like the rest of NS8 (page-title/-subtitle, spacing, card height)
+  const official = ['page-title', 'page-subtitle', 'subpage-title', 'toolbar', 'min-height-card', 'landscape-warning'];
+  const intended = { has: c => shell.includes(c) || official.includes(c) || /^mg-(top|bottom|left|right)-(xs|sm|md|lg|xlg|xxlg)$/.test(c) };
   const found = new Map();
   const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
     const full = path.join(dir, e.name);
