@@ -162,9 +162,12 @@ class Scenario:
         events were replayed. 4 events alone cannot overflow the bucket, so a ban proves the replay."""
         def check():
             hub, ip = self.hub, H_ENGINE_RESTART
-            before = hub.event_status()['replayed_total']
+            before, acked_before = hub.event_status()['replayed_total'], hub.event_status()['acked']
             hub.ban_by_events(ip, count=3)
-            _require(wait_until(self.clock, lambda: hub.event_status()['pending'] == 0 and hub.event_status()['unacked'] == 0, 120),
+            # The status file is refreshed every few seconds: 'nothing pending' alone can be a stale reading from before
+            # the events arrived (hosted run 45343499773), so require the acknowledged counter to advance by 3.
+            _require(wait_until(self.clock, lambda: hub.event_status()['acked'] >= acked_before + 3 and hub.event_status()['pending'] == 0
+                                and hub.event_status()['unacked'] == 0, 120),
                      'events were not acknowledged as consumed by the engine')
             _require(_decision(hub, ip) is None and not ev.nft_has_ip(hub.nft(), ip), 'bucket overflowed early: test premise broken')
             hub.engine_restart()

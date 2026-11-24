@@ -245,3 +245,9 @@ class ProbeScript(unittest.TestCase):
                 c = store.event_consumer_state('c', str(data))
                 self.assertFalse(c['ready'])
                 self.assertEqual(c['gen'], '')
+
+
+class StatusCounters(unittest.TestCase):
+    def test_sync_status_publishes_the_acked_counter(self):
+        text = (Path(__file__).resolve().parents[1] / 'imageroot/pypkg/cscompanion/sync.py').read_text()
+        self.assertIn("status['event_acked']", text)

@@ -75,6 +75,7 @@ class MockNode:
         self.suppressed = set()
         self.name = role
         self.buckets = {}              # ip -> events held in the (in-memory) scenario bucket
+        self.acked = 0
         self.replayed = 0
 
     def expire(self, now):
@@ -152,6 +153,7 @@ class MockOps:
         if self.c.m.get('slow_outage_ban') and not self.c.link:
             self.c.sleep(self.c.m['slow_outage_ban'])      # real runs spend ~1 min detecting the stale hub first
         self.n.buckets[ip] = self.n.buckets.get(ip, 0) + count
+        self.n.acked += count
         if self.n.buckets[ip] > 4:                     # leaky bucket capacity 4: the 5th event overflows into a ban
             self.n.decisions[ip] = {'scenario': 'crowdsec/lab', 'expires_at': self.c.t + TTL}
     def ssh_attack(self, ip):
@@ -167,7 +169,7 @@ class MockOps:
             self.n.replayed += sum(self.n.buckets.values())
         self.c.sleep(20)
     def event_status(self):
-        return {'unacked': 0, 'pending': 0, 'replayed_total': self.n.replayed}
+        return {'unacked': 0, 'pending': 0, 'acked': self.n.acked, 'replayed_total': self.n.replayed}
     def allowlist(self): return {'198.51.100.241'}
     def unban(self, ip):
         self.n.decisions.pop(ip, None)
@@ -279,6 +281,10 @@ class Scenario(unittest.TestCase):
         result, _ = run(http_scenario='crowdsecurity/ssh-bf')
         self.assertEqual(status(result, 'http_scan_detection'), 'fail')
         self.assertIn('expected one of', reason(result, 'http_scan_detection'))
+
+    def test_restart_replay_waits_for_the_acknowledged_counter_not_a_stale_empty_queue(self):
+        text = (ROOT / 'tests/lab/twolab/scenario.py').read_text()
+        self.assertIn("event_status()['acked'] >= acked_before + 3", text)
 
     def test_ttl_restart_at_import_is_caught(self):
         result, _ = run(reset_ttl=True)

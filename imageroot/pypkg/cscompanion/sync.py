@@ -348,6 +348,7 @@ def main():
             status['local_export_overload']=bool(export and export[0]=='1')
             status['event_pending']=db.execute('SELECT count(*) FROM events WHERE delivered=0').fetchone()[0]
             status['event_unacked']=db.execute('SELECT count(*) FROM events WHERE delivered=1 AND acked IS NULL AND appended_gen IS NOT NULL').fetchone()[0]
+            status['event_acked']=db.execute('SELECT count(*) FROM events WHERE delivered=1 AND acked IS NOT NULL AND appended_gen IS NOT NULL').fetchone()[0]
             replayed=db.execute("SELECT value FROM meta WHERE key='event_replayed_total'").fetchone()
             status['event_replayed_total']=int(replayed[0]) if replayed else 0
         atomic_write(state_dir()/'sync-status.json',json.dumps(status)+'\n')

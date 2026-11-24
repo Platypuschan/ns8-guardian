@@ -95,7 +95,7 @@ class GuestOps:
     def event_status(self):
         sync = self.api(self.mod_agent(), 'get-companion-status', {}).get('sync') or {}
         try:
-            return {'pending': int(sync['event_pending']), 'unacked': int(sync['event_unacked']),
+            return {'pending': int(sync['event_pending']), 'unacked': int(sync['event_unacked']), 'acked': int(sync['event_acked']),
                     'replayed_total': int(sync['event_replayed_total'])}
         except (KeyError, TypeError, ValueError):
             raise RemoteError('%s: companion status carries no event acknowledgement counters' % self.role) from None
